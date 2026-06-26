@@ -1,5 +1,7 @@
 # Jailbreaker
 
+[![Sponsored by SpecterOps](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fspecterops%2F.github%2Fmain%2Fconfig%2Fshield.json)](https://github.com/specterops)
+
 Jailbreaker is a local offline evaluation harness for testing chatbot and agent systems against jailbreak, prompt-injection, and related safety failures.
 
 ![Jailbreaker dashboard](assets/Jailbreaker-screenshot.png)
