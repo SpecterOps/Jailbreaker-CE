@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+          version: "0.11.11"
+
+      - name: Install Python dependencies
+        run: uv sync --locked --extra dev --extra docs --extra postgres
+
+      - name: Run backend tests
+        run: uv run --locked --extra dev --extra docs --extra postgres python -m pytest backend/tests
+
+      - name: Compile backend
+        run: uv run --locked --extra dev --extra docs --extra postgres python -m compileall -q backend/app
+
+      - name: Build docs
+        run: uv run --locked --extra dev --extra docs --extra postgres mkdocs build --strict
+
+      - name: Verify public release structure
+        run: uv run --locked --extra dev --extra docs --extra postgres python scripts/verify_public_release.py --skip-command-checks
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run frontend tests
+        run: node --test frontend/tests/*.test.mjs
+
+      - name: Check frontend syntax
+        run: |
+          node --check frontend/server.mjs
+          node --check frontend/public/app.js
+          node --check frontend/public/analysis.js
+          node --check frontend/public/experiments.js
+
+      - name: Validate Compose config
+        run: docker compose -f docker-compose.yml config --quiet

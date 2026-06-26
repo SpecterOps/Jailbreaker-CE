@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jailbreaker Experiments</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <nav class="sidebar">
+        <div class="sidebar-brand">
+          <span class="brand-name">Jailbreaker</span>
+          <span class="brand-version">v0.1</span>
+        </div>
+        <div id="sidebar-nav-root" class="sidebar-nav-root" aria-label="Primary navigation"></div>
+        <div class="sidebar-footer">
+          <div id="sidebar-vault-root" class="sidebar-vault-root" aria-label="LLM vault"></div>
+        </div>
+      </nav>
+
+      <main class="main-content">
+        <header class="topbar">
+          <h1 class="page-title">Experiments</h1>
+        </header>
+
+        <div class="content">
+          <!-- Design Panel -->
+          <section class="panel experiment-panel active" data-panel="design">
+            <div class="panel-header"><h2>Experiment Design</h2></div>
+            <form id="experiment-form" class="config-form">
+              <!-- Metadata -->
+              <div class="config-group">
+                <div class="config-group-label">Metadata</div>
+	                <div class="form-row">
+	                  <div class="form-field flex-1">
+	                    <label for="exp-name">Experiment Name</label>
+	                    <input type="text" id="exp-name" placeholder="e.g. GPT-4o-mini jailbreak resilience" required />
+	                  </div>
+	                  <div class="form-field">
+	                    <label for="exp-group">Experiment Group</label>
+	                    <input type="text" id="exp-group" placeholder="e.g. baseline-comparison" />
+	                  </div>
+	                </div>
+                <div class="form-row">
+                  <div class="form-field flex-1">
+                    <label for="exp-description">Description</label>
+                    <textarea id="exp-description" rows="2" placeholder="What this experiment measures"></textarea>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-field flex-1">
+                    <label for="exp-hypothesis">Hypothesis</label>
+                    <textarea id="exp-hypothesis" rows="2" placeholder="e.g. Iterative techniques will achieve higher ASR than single-shot techniques"></textarea>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Dataset -->
+              <div class="config-group">
+                <div class="config-group-label">Dataset</div>
+                <div class="dataset-tabs">
+                  <button type="button" class="dataset-tab active" data-ds-tab="upload">Upload New</button>
+                  <button type="button" class="dataset-tab" data-ds-tab="select">Select Existing</button>
+                </div>
+                <div class="dataset-panel active" data-ds-panel="upload">
+                  <div class="form-row">
+                    <div class="form-field flex-1">
+                      <label for="ds-name">Dataset Name</label>
+                      <input type="text" id="ds-name" placeholder="e.g. HarmBench subset" />
+                    </div>
+                  </div>
+                  <div class="form-row form-row-stack">
+                    <div class="form-field flex-1">
+                      <label for="ds-prompts">Prompts (JSON array)</label>
+                      <textarea id="ds-prompts" rows="6" placeholder='[{"text": "How to pick a lock", "category": "physical-harm"}, ...]'></textarea>
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field">
+                      <button type="button" class="btn btn-secondary" id="upload-dataset-btn">Upload Dataset</button>
+                    </div>
+                    <div class="form-field">
+                      <span class="config-status" id="ds-upload-status"></span>
+                    </div>
+                  </div>
+                </div>
+                <div class="dataset-panel" data-ds-panel="select" hidden>
+                  <div id="dataset-list" class="dataset-list">
+                    <p class="text-muted">No datasets uploaded yet.</p>
+                  </div>
+                </div>
+                <div class="dataset-selected" id="dataset-selected" hidden>
+                  <span class="tag tag-info" id="selected-dataset-tag"></span>
+                </div>
+              </div>
+
+              <!-- Techniques -->
+              <div class="config-group">
+                <div class="config-group-label">Techniques</div>
+                <div class="technique-selector-actions">
+                  <button type="button" class="btn btn-secondary btn-sm" id="select-all-btn">Select All</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="deselect-all-btn">Deselect All</button>
+                  <span class="config-status" id="technique-count">0 selected</span>
+                </div>
+	                <div id="technique-selector" class="technique-selector"></div>
+	              </div>
+
+	              <!-- Run Budget -->
+	              <div class="config-group">
+	                <div class="config-group-label">Run Budget</div>
+	                <div class="form-row">
+	                  <div class="form-field">
+	                    <label for="exp-repeat-count">Runs Per Configuration</label>
+	                    <input type="number" id="exp-repeat-count" value="1" min="1" max="100" />
+	                  </div>
+	                  <div class="form-field">
+	                    <label for="exp-max-rounds">Max Rounds</label>
+	                    <input type="number" id="exp-max-rounds" value="5" min="1" max="50" />
+	                  </div>
+	                </div>
+	              </div>
+
+              <!-- Target LLM Configuration -->
+              <div class="config-group config-group--target">
+                <div class="config-group-label">Target LLM</div>
+                <div class="config-group-hint">The model being evaluated for jailbreak resilience</div>
+                <div class="form-row">
+                  <div class="form-field">
+                    <label for="exp-target-profile">Saved Profile</label>
+                    <select id="exp-target-profile">
+                      <option value="">Manual / session key</option>
+                    </select>
+                  </div>
+                  <div class="form-field" id="exp-target-key-field">
+                    <label for="exp-api-key">API Key</label>
+                    <input type="password" id="exp-api-key" placeholder="sk-..." />
+                  </div>
+                  <div class="form-field">
+                    <label for="exp-api-base-url">Base URL</label>
+                    <input type="url" id="exp-api-base-url" value="https://api.openai.com/v1" />
+                  </div>
+                  <div class="form-field">
+                    <label for="exp-model">Model</label>
+                    <input type="text" id="exp-model" value="gpt-4o-mini" />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-field flex-1">
+                    <label for="exp-system-prompt">System Prompt</label>
+                    <input type="text" id="exp-system-prompt" value="You are a helpful assistant." />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Attacker LLM Configuration -->
+              <div class="config-group config-group--attacker">
+                <div class="config-group-label">Attacker LLM</div>
+                <div class="config-group-hint">Used by iterative techniques (PAIR, TAP, Crescendo, AutoDAN, GPTFuzz).</div>
+                <div class="form-row">
+                  <div class="form-field">
+                    <label for="exp-attacker-profile">Saved Profile</label>
+                    <select id="exp-attacker-profile">
+                      <option value="">Manual / session key</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="exp-attacker-api-key">API Key</label>
+                    <input type="password" id="exp-attacker-api-key" placeholder="sk-..." />
+                  </div>
+                  <div class="form-field">
+                    <label for="exp-attacker-base-url">Base URL</label>
+                    <input type="url" id="exp-attacker-base-url" placeholder="http://localhost:1234/v1" />
+                  </div>
+                  <div class="form-field">
+                    <label for="exp-attacker-model">Model</label>
+                    <input type="text" id="exp-attacker-model" placeholder="e.g. llama-3.1-8b" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Judge LLM Configuration -->
+              <div class="config-group config-group--judge">
+                <div class="config-group-label">Judge LLM</div>
+                <div class="config-group-hint">Scores target responses. Use the attacker, the target, or a custom judge model.</div>
+                <div class="form-row">
+                  <div class="form-field">
+                    <label for="exp-judge-mode">Judge Source</label>
+                    <select id="exp-judge-mode">
+                      <option value="target" selected>Target LLM</option>
+                      <option value="attacker">Attacker LLM</option>
+                      <option value="custom">Custom Judge LLM</option>
+                    </select>
+                  </div>
+                </div>
+                <div id="exp-judge-custom-fields" style="display:none;">
+                  <div class="attacker-toggle">
+                    <label class="toggle-label">
+                      <input type="checkbox" id="exp-judge-local" />
+                      <span>Local (LM Studio / Ollama — no API key)</span>
+                    </label>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field">
+                      <label for="exp-judge-profile">Saved Profile</label>
+                      <select id="exp-judge-profile">
+                        <option value="__judge_target__">Use Target LLM</option>
+                        <option value="__judge_attacker__">Use Attacker LLM</option>
+                        <option value="">Manual / session key</option>
+                      </select>
+                    </div>
+                    <div class="form-field" id="exp-judge-key-field">
+                      <label for="exp-judge-api-key">API Key</label>
+                      <input type="password" id="exp-judge-api-key" placeholder="sk-..." />
+                    </div>
+                    <div class="form-field">
+                      <label for="exp-judge-base-url">Base URL</label>
+                      <input type="url" id="exp-judge-base-url" placeholder="http://localhost:1234/v1" />
+                    </div>
+                    <div class="form-field">
+                      <label for="exp-judge-model">Model</label>
+                      <input type="text" id="exp-judge-model" placeholder="e.g. gpt-4o-mini" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-actions experiment-actions">
+                <button type="submit" class="btn btn-primary" id="run-experiment-btn">Run Experiment</button>
+              </div>
+            </form>
+          </section>
+
+          <!-- Results Panel -->
+          <section class="panel experiment-panel" data-panel="results" hidden>
+            <div class="results-picker-panel">
+              <div id="exp-results-empty" class="results-empty-state">
+                <div class="results-kicker">Experiment Results</div>
+                <h2>Choose a previous experiment</h2>
+                <p class="text-muted">Select an experiment with completed cells to load its overview, metrics, matrix, evidence, and raw data.</p>
+              </div>
+              <div id="metrics-selector" class="metrics-selector results-switcher">
+                <label for="metrics-experiment-select">Switch experiment</label>
+                <select id="metrics-experiment-select" class="form-select">
+                  <option value="">-- Choose an experiment --</option>
+                </select>
+                <button class="btn btn-primary btn-sm" id="load-metrics-btn">Load Results</button>
+                <button class="btn btn-secondary btn-sm" id="download-full-csv-btn" style="display:none">Download Full CSV</button>
+                <button class="btn btn-secondary btn-sm" id="download-metrics-csv-btn" style="display:none">Download Metrics CSV</button>
+              </div>
+            </div>
+            <div id="exp-results" class="results-workbench" style="display:none;">
+              <header class="results-workbench-header">
+                <div class="results-context">
+                  <div class="results-kicker">Experiment Results</div>
+                  <h2 id="results-title">Selected experiment</h2>
+                  <div class="results-meta-row" id="results-meta"></div>
+                </div>
+                <div class="results-command-bar">
+                  <div class="export-bar" id="exp-export-bar">
+                    <button class="btn btn-secondary btn-sm" id="export-csv-btn">Export CSV</button>
+                    <button class="btn btn-secondary btn-sm" id="export-json-btn">Export JSON</button>
+                  </div>
+                </div>
+              </header>
+
+              <nav class="results-section-nav" aria-label="Results sections">
+                <a href="#results-overview">Overview</a>
+                <a href="#results-compare">Compare</a>
+                <a href="#results-matrix">Matrix</a>
+                <a href="#results-evidence">Evidence</a>
+                <a href="#results-raw-data">Raw Data</a>
+              </nav>
+
+              <section class="results-workbench-section" id="results-overview">
+                <div class="workbench-section-heading">
+                  <div>
+                    <div class="section-kicker">Overview</div>
+                    <h3>Run posture</h3>
+                  </div>
+                </div>
+                <div class="insight-strip" id="exp-posture-summary"></div>
+                <div class="results-overview-grid">
+                  <div class="results-pane">
+                    <div class="results-pane-heading">
+                      <h4>Severity distribution</h4>
+                    </div>
+                    <div class="severity-bar-wrap">
+                      <div class="severity-bar" id="exp-severity-bar"></div>
+                      <div class="severity-legend" id="exp-severity-legend"></div>
+                    </div>
+                  </div>
+                  <div class="results-pane">
+                    <div class="results-pane-heading">
+                      <h4>Highest-risk slices</h4>
+                    </div>
+                    <div class="risk-list" id="results-risk-list"></div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="results-workbench-section" id="results-compare">
+                <div class="workbench-section-heading">
+                  <div>
+                    <div class="section-kicker">Compare</div>
+                    <h3>Technique and category performance</h3>
+                  </div>
+                </div>
+                <div id="metrics-content" class="metrics-content">
+                  <div id="metrics-body"></div>
+                </div>
+              </section>
+
+              <section class="results-workbench-section" id="results-matrix">
+                <div class="workbench-section-heading">
+                  <div>
+                    <div class="section-kicker">Matrix</div>
+                    <h3>Prompt x technique heatmap</h3>
+                  </div>
+                </div>
+                <div class="matrix-wrap" id="matrix-wrap"></div>
+              </section>
+
+              <section class="results-workbench-section" id="results-evidence">
+                <div class="workbench-section-heading">
+                  <div>
+                    <div class="section-kicker">Evidence</div>
+                    <h3>Cells worth inspecting</h3>
+                  </div>
+                </div>
+                <div class="evidence-list" id="results-evidence-list"></div>
+              </section>
+
+              <details class="results-workbench-section results-raw-data" id="results-raw-data">
+                <summary>
+                  <span>Raw Data</span>
+                  <span class="summary-hint">Advanced SQL views and custom query access</span>
+                </summary>
+                <div class="data-explorer">
+                <div class="data-views">
+                  <div class="data-views-label">Prebuilt views</div>
+                  <div class="data-views-list" id="data-views-list">
+	                    <button class="data-view-btn active" data-query="SELECT experiment_id, name, description, hypothesis, experiment_group, repeat_count, max_rounds, mode, status, total_cells, completed_cells, created_at, completed_at FROM experiments ORDER BY created_at DESC">Experiments</button>
+                    <button class="data-view-btn" data-query="SELECT dataset_id, name, description, prompt_count, created_at FROM experiment_datasets ORDER BY created_at DESC">Datasets</button>
+                    <button class="data-view-btn" data-query="SELECT d.dataset_id, d.prompt_id, d.prompt_text, d.category FROM experiment_dataset_prompts d ORDER BY d.dataset_id, d.sort_order">Prompts</button>
+	                    <button class="data-view-btn" data-query="SELECT experiment_id, technique_key, prompt_id, repeat_index, run_id, status, score, asr, highest_severity, metadata, completed_at FROM experiment_cells ORDER BY experiment_id, technique_key, prompt_id, repeat_index">Cells</button>
+	                    <button class="data-view-btn" data-query="SELECT e.experiment_id, e.name, e.experiment_group, c.technique_key, c.prompt_id, c.repeat_index, c.score, c.asr, c.highest_severity, c.status FROM experiment_cells c JOIN experiments e ON e.experiment_id = c.experiment_id ORDER BY e.created_at DESC, c.technique_key, c.prompt_id, c.repeat_index">Cells + Experiment</button>
+	                    <button class="data-view-btn" data-query="SELECT c.experiment_id, c.technique_key, c.prompt_id, c.repeat_index, r.run_id, r.target_model, r.attacker_model, r.unsafe_intent, r.score, r.asr, r.highest_severity, r.success, r.final_prompt, r.final_output FROM experiment_cells c JOIN evaluation_runs r ON r.run_id = c.run_id ORDER BY c.experiment_id, c.technique_key, c.prompt_id, c.repeat_index LIMIT 100">Run Details</button>
+	                    <button class="data-view-btn" data-query="SELECT c.experiment_id, c.technique_key, c.prompt_id, c.repeat_index, c.score, c.asr, c.metadata->'rejudge_results' AS rejudge_results, r.unsafe_intent, r.final_output, r.final_prompt FROM experiment_cells c LEFT JOIN evaluation_runs r ON r.run_id = c.run_id ORDER BY c.experiment_id, c.technique_key, c.prompt_id, c.repeat_index LIMIT 100">Prompts + Responses</button>
+	                    <button class="data-view-btn" data-query="SELECT c.experiment_id, c.technique_key, c.prompt_id, c.repeat_index, conv.kind, conv.payload FROM experiment_cells c JOIN evaluation_run_conversations conv ON conv.run_id = c.run_id ORDER BY c.experiment_id, c.technique_key, c.prompt_id, c.repeat_index, conv.entry_index LIMIT 100">Conversations</button>
+                    <button class="data-view-btn" data-query="SELECT e.experiment_id, e.name, e.target_config->>'model' AS target_model, e.target_config->>'attacker_model' AS attacker_model, e.target_config->>'system_prompt' AS system_prompt, e.status, e.total_cells, e.report->>'overall_asr' AS overall_asr, e.report->>'avg_score' AS avg_score, e.report->>'security_posture' AS posture FROM experiments e ORDER BY e.created_at DESC">Experiment Config</button>
+                  </div>
+                </div>
+                <div class="data-query-section">
+                  <div class="data-views-label">Custom query</div>
+                  <div class="data-query-row">
+                    <textarea id="data-query-input" class="data-query-input" rows="3" placeholder="SELECT * FROM experiments LIMIT 50"></textarea>
+                    <button class="btn btn-primary btn-sm" id="data-query-run">Run</button>
+                  </div>
+                </div>
+                <div class="data-results-section">
+                  <div class="data-results-meta" id="data-results-meta"></div>
+                  <div class="data-results-wrap" id="data-results-wrap">
+                    <p class="text-muted">Select a view or run a query.</p>
+                  </div>
+                </div>
+              </div>
+              </details>
+            </div>
+          </section>
+
+          <!-- History Panel -->
+          <section class="panel experiment-panel" data-panel="history" hidden>
+            <div class="panel-header"><h2>Past Experiments</h2></div>
+            <div id="experiment-history" class="experiment-history">
+              <p class="text-muted">No experiments yet.</p>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <!-- Conversation Detail Modal -->
+    <div class="modal-overlay" id="modal-overlay" style="display:none;">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title" id="modal-title"></h2>
+          <div class="modal-actions">
+            <label class="toggle-label">
+              <input type="checkbox" id="toggle-attacker" />
+              <span>Show attacker LLM flow</span>
+            </label>
+            <label class="toggle-label">
+              <input type="checkbox" id="toggle-raw-input" />
+              <span>Show raw target input</span>
+            </label>
+            <button class="btn btn-secondary btn-sm modal-close" id="modal-close">&times;</button>
+          </div>
+        </div>
+        <div class="modal-body" id="modal-body"></div>
+      </div>
+    </div>
+
+    <script src="/experiments.js" type="module"></script>
+  </body>
+</html>

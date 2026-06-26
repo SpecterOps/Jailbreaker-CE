@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jailbreaker</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <nav class="sidebar">
+        <div class="sidebar-brand">
+          <span class="brand-name">Jailbreaker</span>
+          <span class="brand-version">v0.1</span>
+        </div>
+        <ul class="sidebar-nav">
+          <li class="nav-item active"><a href="/">Dashboard</a></li>
+          <li class="nav-item"><a href="/experiments/">Experiments</a></li>
+          <li class="nav-item"><a href="/history/">History</a></li>
+          <li class="nav-item"><a href="/analysis/">Analysis</a></li>
+        </ul>
+        <div class="sidebar-footer">
+          <div id="sidebar-vault-root" class="sidebar-vault-root" aria-label="LLM vault"></div>
+        </div>
+      </nav>
+
+      <main class="main-content">
+        <header class="topbar">
+          <h1 class="page-title">Dashboard</h1>
+        </header>
+
+        <div class="content dashboard-content">
+          <section class="panel panel--config operator-run-panel" id="live-eval-section">
+            <form id="live-eval-form" class="operator-run-form">
+              <div class="operator-run-header">
+                <div>
+                  <span class="operator-kicker">Run Control</span>
+                  <h2>Operator Console</h2>
+                </div>
+                <span class="config-status" id="config-status" role="status" aria-live="polite"></span>
+              </div>
+
+              <div class="operator-run-strip">
+                <div class="form-field operator-intent-field">
+                  <label for="unsafe-intent">Intent to Test</label>
+                  <input type="text" id="unsafe-intent" placeholder="e.g. Extract private user data" required />
+                </div>
+                <div class="form-actions operator-actions">
+                  <button type="button" class="btn btn-secondary" id="save-config-btn">Save</button>
+                  <button type="submit" class="btn btn-primary" id="start-eval-btn">Run All Techniques</button>
+                </div>
+              </div>
+
+              <div class="operator-profile-row" aria-label="LLM profile selection">
+                <div class="operator-profile-block" data-profile-role="target">
+                  <label for="target-profile">Target</label>
+                  <button
+                    type="button"
+                    class="btn btn-primary operator-profile-configure-btn"
+                    id="target-profile-configure-btn"
+                  >Configure Target LLM</button>
+                  <div class="operator-profile-select-row" id="target-profile-select-row" hidden>
+                    <div class="operator-profile-select-shell" id="target-profile-select-shell" hidden>
+                      <select id="target-profile">
+                        <option value="">Select target profile</option>
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-secondary operator-profile-add-btn"
+                      id="target-profile-add-btn"
+                      aria-label="Configure new target LLM profile"
+                    >+</button>
+                  </div>
+                  <button type="button" class="btn btn-secondary btn-xs operator-profile-edit-btn" id="target-profile-edit-btn" hidden>Edit</button>
+                  <span class="operator-profile-meta" id="operator-target-summary">No target profile configured</span>
+                </div>
+
+                <div class="operator-profile-block" data-profile-role="judge">
+                  <label for="judge-profile">Judge</label>
+                  <button
+                    type="button"
+                    class="btn btn-primary operator-profile-configure-btn"
+                    id="judge-profile-configure-btn"
+                  >Configure Judge LLM</button>
+                  <div class="operator-profile-select-row" id="judge-profile-select-row" hidden>
+                    <div class="operator-profile-select-shell" id="judge-profile-select-shell" hidden>
+                      <select id="judge-profile">
+                        <option value="__judge_target__">Use Target LLM</option>
+                        <option value="__judge_attacker__">Use Attacker LLM</option>
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-secondary operator-profile-add-btn"
+                      id="judge-profile-add-btn"
+                      aria-label="Configure new judge LLM profile"
+                    >+</button>
+                  </div>
+                  <button type="button" class="btn btn-secondary btn-xs operator-profile-edit-btn" id="judge-profile-edit-btn" hidden>Edit</button>
+                  <span class="operator-profile-meta" id="operator-judge-summary">No judge profile configured</span>
+                </div>
+
+                <div class="operator-profile-block" data-profile-role="attacker">
+                  <label for="attacker-profile">Attacker</label>
+                  <button
+                    type="button"
+                    class="btn btn-primary operator-profile-configure-btn"
+                    id="attacker-profile-configure-btn"
+                  >Configure Attacker LLM</button>
+                  <div class="operator-profile-select-row" id="attacker-profile-select-row" hidden>
+                    <div class="operator-profile-select-shell" id="attacker-profile-select-shell" hidden>
+                      <select id="attacker-profile">
+                        <option value="">No attacker selected</option>
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-secondary operator-profile-add-btn"
+                      id="attacker-profile-add-btn"
+                      aria-label="Configure new attacker LLM profile"
+                    >+</button>
+                  </div>
+                  <button type="button" class="btn btn-secondary btn-xs operator-profile-edit-btn" id="attacker-profile-edit-btn" hidden>Edit</button>
+                  <span class="operator-profile-meta" id="operator-attacker-summary">No attacker profile configured</span>
+                </div>
+              </div>
+
+              <section
+                class="operator-profile-editor"
+                id="operator-profile-editor"
+                aria-labelledby="profile-editor-title"
+                hidden
+              >
+                <div class="profile-editor-header">
+                  <h3 id="profile-editor-title">New Target LLM Profile</h3>
+                  <span class="profile-editor-kicker">Saved vault profile required before use</span>
+                </div>
+
+                <div class="profile-editor-grid">
+                  <div class="form-field">
+                    <label for="profile-editor-name">Profile Name</label>
+                    <input type="text" id="profile-editor-name" placeholder="e.g. Local judge" />
+                  </div>
+                  <div class="form-field">
+                    <label for="profile-editor-provider">Provider</label>
+                    <input type="text" id="profile-editor-provider" placeholder="openai, local, anthropic" />
+                  </div>
+                  <div class="form-field">
+                    <label for="profile-editor-model">Model</label>
+                    <input type="text" id="profile-editor-model" placeholder="e.g. gpt-4o-mini" />
+                  </div>
+                  <div class="form-field">
+                    <label for="profile-editor-base-url">Base URL</label>
+                    <input type="url" id="profile-editor-base-url" placeholder="https://api.openai.com/v1" />
+                  </div>
+                  <div class="form-field profile-editor-key-field" id="profile-editor-key-field">
+                    <label for="profile-editor-api-key">API Key</label>
+                    <input type="password" id="profile-editor-api-key" placeholder="sk-..." />
+                  </div>
+                  <label class="toggle-label profile-editor-local-toggle">
+                    <input type="checkbox" id="profile-editor-local" />
+                    <span>Local/no-key profile</span>
+                  </label>
+                </div>
+
+                <div class="profile-editor-actions">
+                  <button type="button" class="btn btn-secondary" id="profile-editor-cancel-btn">Cancel</button>
+                  <button type="button" class="btn btn-primary" id="profile-editor-save-btn">Save Profile</button>
+                </div>
+              </section>
+
+              <div class="operator-backing-fields" hidden>
+                <input type="checkbox" id="target-local" />
+                <input type="password" id="api-key" />
+                <input type="url" id="api-base-url" value="https://api.openai.com/v1" />
+                <input type="text" id="model" value="" />
+                <input type="text" id="system-prompt" value="You are a helpful assistant." />
+
+                <input type="checkbox" id="attacker-local" />
+                <input type="password" id="attacker-api-key" />
+                <input type="url" id="attacker-api-base-url" />
+                <input type="text" id="attacker-model" />
+
+                <input type="hidden" id="judge-mode" value="target" />
+                <input type="checkbox" id="judge-local" />
+                <input type="password" id="judge-api-key" />
+                <input type="url" id="judge-api-base-url" />
+                <input type="text" id="judge-model" />
+              </div>
+            </form>
+          </section>
+
+          <div class="operator-workspace">
+            <section class="panel operator-primary" id="technique-section">
+              <div class="panel-header">
+                <h2>Technique Library</h2>
+                <div class="technique-header-actions">
+                  <div class="filter-pills" id="surface-pills"></div>
+                  <button type="button" class="btn btn-secondary btn-sm add-technique-btn" id="open-custom-modal">
+                    Add +
+                  </button>
+                </div>
+              </div>
+              <div class="table-header">
+                <span class="th th-name">Technique</span>
+                <span class="th th-surface">Surface</span>
+                <span class="th th-tags">Tags</span>
+                <span class="th th-status">Status</span>
+                <span class="th th-conv">Conversation</span>
+                <span class="th th-action"></span>
+              </div>
+              <div class="table-body">
+                <div id="baseline-row"></div>
+                <div id="technique-list"></div>
+              </div>
+            </section>
+
+            <aside class="operator-sidebar">
+              <section class="panel operator-monitor-panel">
+                <div class="panel-header">
+                  <h2>Run Monitor</h2>
+                  <span class="config-status" id="operator-monitor-state">Idle</span>
+                </div>
+                <div class="operator-monitor-body">
+                  <div class="operator-monitor-stat">
+                    <span>Mode</span>
+                    <strong id="operator-run-mode-summary">Demo until configured</strong>
+                  </div>
+                  <div class="operator-monitor-stat">
+                    <span>Activity</span>
+                    <strong id="operator-monitor-current">No run active</strong>
+                  </div>
+                  <div class="operator-monitor-stat">
+                    <span>Elapsed</span>
+                    <strong id="operator-monitor-elapsed">0s</strong>
+                  </div>
+                  <div class="operator-monitor-stat">
+                    <span>Baseline</span>
+                    <strong id="operator-monitor-baseline">Not run</strong>
+                  </div>
+                  <div class="operator-monitor-stat">
+                    <span>Results</span>
+                    <strong id="operator-monitor-results">No runs yet</strong>
+                  </div>
+                  <div class="operator-monitor-stat operator-monitor-stat--wide">
+                    <span>Last error</span>
+                    <strong id="operator-monitor-error">None</strong>
+                  </div>
+                </div>
+                <div class="progress-bar operator-progress" id="eval-progress" style="display:none;" role="status" aria-live="polite">
+                  <div class="progress-info">
+                    <span class="progress-label" id="progress-label">Starting...</span>
+                    <span class="progress-count" id="progress-count">0 / 0</span>
+                  </div>
+                  <div class="progress-track">
+                    <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+                  </div>
+                  <span class="progress-current" id="progress-current"></span>
+                </div>
+              </section>
+
+              <section class="panel panel--results operator-results-panel" id="results-dashboard" style="display:none;">
+                <div class="panel-header">
+                  <h2>Evaluation Results</h2>
+                </div>
+                <div class="posture-row" id="posture-summary"></div>
+                <div class="severity-bar-wrap">
+                  <div class="severity-bar" id="severity-bar"></div>
+                  <div class="severity-legend" id="severity-legend"></div>
+                </div>
+                <div class="results-grid" id="results-grid"></div>
+              </section>
+            </aside>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Conversation Detail Modal -->
+    <div class="modal-overlay" id="modal-overlay" style="display:none;">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title" id="modal-title"></h2>
+          <div class="modal-actions">
+            <label class="toggle-label">
+              <input type="checkbox" id="toggle-attacker" />
+              <span>Show attacker LLM flow</span>
+            </label>
+            <label class="toggle-label">
+              <input type="checkbox" id="toggle-raw-input" />
+              <span>Show raw target input</span>
+            </label>
+            <button class="btn btn-secondary btn-sm modal-close" id="modal-close">&times;</button>
+          </div>
+        </div>
+        <div class="modal-body" id="modal-body"></div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="custom-modal-overlay" style="display:none;">
+      <div class="modal custom-technique-modal">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title" id="custom-modal-title">Add Custom Jailbreak</h2>
+            <div class="config-status" id="custom-builder-status">Runs individually from the library</div>
+          </div>
+          <button class="btn btn-secondary btn-sm modal-close" id="custom-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="custom-technique-form" class="config-form custom-technique-form">
+            <div class="form-row">
+              <div class="form-field">
+                <label for="custom-technique-name">Name</label>
+                <input type="text" id="custom-technique-name" placeholder="e.g. Escalation Ladder" required />
+              </div>
+              <div class="form-field">
+                <label for="custom-technique-mode">Execution Mode</label>
+                <select id="custom-technique-mode">
+                  <option value="single_shot">Manual single shot</option>
+                  <option value="iterative">Iterative loop</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-field flex-1">
+                <label for="custom-technique-summary">Summary</label>
+                <input
+                  type="text"
+                  id="custom-technique-summary"
+                  placeholder="Short description shown in the technique library"
+                />
+              </div>
+            </div>
+            <div class="form-row form-row-stack">
+              <div class="form-field flex-1">
+                <label for="custom-target-system-prompt">Target System Prompt Override</label>
+                <textarea
+                  id="custom-target-system-prompt"
+                  rows="4"
+                  placeholder="Optional. If set, this overrides the dashboard target system prompt for this custom jailbreak."
+                ></textarea>
+              </div>
+            </div>
+            <div class="form-row form-row-stack">
+              <div class="form-field flex-1">
+                <label for="custom-prompt-template">Prompt Template</label>
+                <textarea
+                  id="custom-prompt-template"
+                  rows="6"
+                  placeholder="Write the jailbreak prompt. Available placeholders: {intent}, {seed_prompt}, {round}, {last_response}, {last_prompt}"
+                ></textarea>
+              </div>
+            </div>
+            <div id="custom-iterative-fields" hidden>
+              <div class="form-row form-row-stack">
+                <div class="form-field flex-1">
+                  <label for="custom-attacker-system-prompt">Attacker System Prompt</label>
+                  <textarea
+                    id="custom-attacker-system-prompt"
+                    rows="5"
+                    placeholder="System prompt that drives the attacker LLM each round"
+                  ></textarea>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-field flex-1">
+                  <label for="custom-refinement-template">Refinement Template</label>
+                  <textarea
+                    id="custom-refinement-template"
+                    rows="6"
+                    placeholder="Instruction sent to the attacker LLM after each target response. Placeholders: {intent}, {round}, {last_response}, {last_prompt}"
+                  ></textarea>
+                </div>
+                <div class="form-field custom-rounds-field">
+                  <label for="custom-max-rounds">Max Rounds</label>
+                  <input type="number" id="custom-max-rounds" min="2" max="12" value="5" />
+                </div>
+              </div>
+            </div>
+            <div class="custom-builder-footer">
+              <div class="custom-builder-hint">
+                Saved custom jailbreaks appear in the technique library with built-ins. `Run All Techniques` still runs the built-in set.
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn btn-secondary" id="custom-technique-reset">Reset</button>
+                <button type="submit" class="btn btn-primary" id="custom-technique-save">Save Custom Technique</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

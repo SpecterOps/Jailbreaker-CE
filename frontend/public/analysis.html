@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jailbreaker Analysis</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <nav class="sidebar">
+        <div class="sidebar-brand">
+          <span class="brand-name">Jailbreaker</span>
+          <span class="brand-version">v0.1</span>
+        </div>
+        <div id="sidebar-nav-root" class="sidebar-nav-root" aria-label="Primary navigation"></div>
+        <div class="sidebar-footer">
+          <div id="sidebar-vault-root" class="sidebar-vault-root" aria-label="LLM vault"></div>
+        </div>
+      </nav>
+
+      <main class="main-content">
+        <header class="topbar">
+          <h1 class="page-title">Analysis</h1>
+          <div class="topbar-cluster">
+            <span class="config-status" id="analysis-status">Ready</span>
+          </div>
+        </header>
+
+        <div class="content">
+          <div class="analysis-panel active" data-panel="views">
+            <section class="panel">
+              <div class="panel-header">
+                <h2>Available Views</h2>
+              </div>
+              <div class="analysis-view-selector" id="analysis-view-tabs"></div>
+            </section>
+
+            <section class="analysis-summary-strip">
+              <div class="panel">
+                <div class="panel-header">
+                  <h2 id="analysis-summary-title">View Snapshot</h2>
+                </div>
+                <div class="results-grid analysis-summary-grid" id="analysis-summary-grid"></div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <h2 id="analysis-table-title">View Data</h2>
+              </div>
+              <div class="analysis-table-wrap">
+                <table class="analysis-table">
+                  <thead id="analysis-table-head"></thead>
+                  <tbody id="analysis-table-body"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div class="analysis-panel" data-panel="query" hidden>
+            <section class="panel analysis-query-panel">
+              <div class="panel-header">
+                <h2>Query Workspace</h2>
+                <span class="config-status" id="analysis-query-status">Read-only SELECT</span>
+              </div>
+              <div class="analysis-meta">
+                <div class="analysis-copy">
+                  Run a direct read-only `SELECT` query against approved reporting tables and analysis views.
+                </div>
+              </div>
+              <div class="analysis-query-shell">
+                <div class="analysis-query-actions">
+                  <button class="btn btn-secondary" id="analysis-query-sample" type="button">Load Sample</button>
+                  <button class="btn btn-primary" id="analysis-query-run" type="button">Run SQL</button>
+                </div>
+                <div class="analysis-query-editor">
+                  <textarea
+                    id="analysis-query-input"
+                    class="analysis-query-input"
+                    spellcheck="false"
+                    placeholder="SELECT * FROM analysis_run_overview ORDER BY created_at DESC LIMIT 25"
+                  ></textarea>
+                </div>
+                <div class="analysis-query-message" id="analysis-query-message"></div>
+                <div class="analysis-table-wrap">
+                  <table class="analysis-table">
+                    <thead id="analysis-query-head"></thead>
+                    <tbody id="analysis-query-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="/analysis.js" type="module"></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+title = "Jailbreaker gitleaks configuration"
+
+[allowlist]
+description = "Documented dummy credentials used in UI placeholders and tests."
+regexes = [
+    '''sk-\.\.\.''',
+    '''sk-test(?:-secret)?''',
+    '''lm-studio''',
+]

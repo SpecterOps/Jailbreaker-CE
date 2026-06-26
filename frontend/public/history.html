@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jailbreaker History</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <nav class="sidebar">
+        <div class="sidebar-brand">
+          <span class="brand-name">Jailbreaker</span>
+          <span class="brand-version">v0.1</span>
+        </div>
+        <div id="sidebar-nav-root" class="sidebar-nav-root" aria-label="Primary navigation"></div>
+        <div class="sidebar-footer">
+          <div id="sidebar-vault-root" class="sidebar-vault-root" aria-label="LLM vault"></div>
+        </div>
+      </nav>
+
+      <main class="main-content">
+        <header class="topbar">
+          <h1 class="page-title">History</h1>
+          <div class="topbar-cluster">
+            <span class="config-status" id="history-status">Loading</span>
+          </div>
+        </header>
+
+        <div class="content history-content">
+          <section class="panel history-filter-panel">
+            <div class="panel-header">
+              <h2>One-Off Run Filters</h2>
+              <div class="history-filter-actions">
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  id="history-advanced-toggle"
+                  aria-expanded="false"
+                  aria-controls="history-advanced-filters"
+                >Advanced</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="history-reset-btn">Reset</button>
+                <button type="submit" form="history-filter-form" class="btn btn-primary btn-sm" id="history-apply-btn">Apply</button>
+              </div>
+            </div>
+            <form id="history-filter-form" class="history-filter-form">
+              <div class="history-filter-grid history-primary-filters" id="history-primary-filters">
+                <div class="form-field history-search-field">
+                  <label for="history-search">Search</label>
+                  <input type="search" id="history-search" placeholder="run, technique, model, prompt, output" />
+                </div>
+                <div class="form-field">
+                  <label for="history-success-filter">Outcome</label>
+                  <select id="history-success-filter">
+                    <option value="">Any outcome</option>
+                    <option value="true">Successful jailbreak</option>
+                    <option value="false">Not successful</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label for="history-severity-filter">Severity</label>
+                  <select id="history-severity-filter">
+                    <option value="">Any severity</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label for="history-completed-after">Completed After</label>
+                  <input type="date" id="history-completed-after" />
+                </div>
+                <div class="form-field">
+                  <label for="history-completed-before">Completed Before</label>
+                  <input type="date" id="history-completed-before" />
+                </div>
+              </div>
+
+              <div class="history-advanced-filters" id="history-advanced-filters" hidden>
+                <div class="history-filter-grid">
+                  <div class="form-field">
+                    <label for="history-technique-filter">Technique</label>
+                    <select id="history-technique-filter">
+                      <option value="">All techniques</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="history-family-filter">Family</label>
+                    <select id="history-family-filter">
+                      <option value="">All families</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="history-surface-filter">Surface</label>
+                    <select id="history-surface-filter">
+                      <option value="">All surfaces</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="history-status-filter">Status</label>
+                    <select id="history-status-filter">
+                      <option value="">Any status</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="history-mode-filter">Mode</label>
+                    <select id="history-mode-filter">
+                      <option value="">Any mode</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="history-target-model-filter">Target Model</label>
+                    <select id="history-target-model-filter">
+                      <option value="">All models</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="history-min-score">Min Score</label>
+                    <input type="number" id="history-min-score" min="0" max="100" step="1" />
+                  </div>
+                  <div class="form-field">
+                    <label for="history-max-score">Max Score</label>
+                    <input type="number" id="history-max-score" min="0" max="100" step="1" />
+                  </div>
+                  <div class="form-field">
+                    <label for="history-min-asr">Min ASR</label>
+                    <input type="number" id="history-min-asr" min="0" max="100" step="1" />
+                  </div>
+                  <div class="form-field">
+                    <label for="history-max-asr">Max ASR</label>
+                    <input type="number" id="history-max-asr" min="0" max="100" step="1" />
+                  </div>
+                </div>
+              </div>
+            </form>
+          </section>
+
+          <section class="history-summary-grid" id="history-summary-grid" aria-label="Run history summary"></section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h2>One-Off Runs</h2>
+              <span class="config-status" id="history-count-label">0 runs</span>
+            </div>
+            <div class="history-table-wrap">
+              <table class="history-table">
+                <colgroup>
+                  <col class="history-col-completed" />
+                  <col class="history-col-technique" />
+                  <col class="history-col-model" />
+                  <col class="history-col-model" />
+                  <col class="history-col-model" />
+                  <col class="history-col-outcome" />
+                  <col class="history-col-intent" />
+                  <col class="history-col-action" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Completed</th>
+                    <th>Technique</th>
+                    <th>Target</th>
+                    <th>Attacker</th>
+                    <th>Judge</th>
+                    <th>Outcome</th>
+                    <th>Intent</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="history-table-body"></tbody>
+              </table>
+            </div>
+            <div class="history-pagination">
+              <label class="history-pagination-control" for="history-sort">
+                <span>Sort</span>
+                <select id="history-sort">
+                  <option value="completed_desc">Newest first</option>
+                  <option value="completed_asc">Oldest first</option>
+                  <option value="score_desc">Score high to low</option>
+                  <option value="score_asc">Score low to high</option>
+                  <option value="asr_desc">ASR high to low</option>
+                  <option value="asr_asc">ASR low to high</option>
+                  <option value="severity_desc">Severity high to low</option>
+                </select>
+              </label>
+              <label class="history-pagination-control history-pagination-control--rows" for="history-limit">
+                <span>Rows</span>
+                <select id="history-limit">
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <button type="button" class="btn btn-secondary btn-sm" id="history-prev-btn">Previous</button>
+              <span class="config-status" id="history-page-label">Page 1</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="history-next-btn">Next</button>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <div class="modal-overlay" id="history-detail-modal" style="display:none;">
+      <div class="modal history-detail-modal">
+        <div class="modal-header">
+          <h2 class="modal-title" id="history-detail-title">Run Detail</h2>
+          <button class="btn btn-secondary btn-sm modal-close" id="history-detail-close" type="button">&times;</button>
+        </div>
+        <div class="modal-body" id="history-detail-body"></div>
+      </div>
+    </div>
+
+    <script src="/history.js" type="module"></script>
+  </body>
+</html>

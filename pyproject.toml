@@ -1,0 +1,25 @@
+[project]
+name = "jailbreaker"
+version = "0.1.0"
+description = "Local offline LLM safety evaluation harness"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["cryptography>=42"]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.1"]
+dev = ["pytest>=8", "ruff>=0.6", "bandit>=1.7"]
+docs = ["mkdocs-material>=9.5"]
+security = ["bandit>=1.7", "ruff>=0.6", "semgrep>=1.80"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = [".worktrees"]
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["E501"]
+
+[tool.bandit]
+exclude_dirs = ["backend/tests", "frontend/tests", ".worktrees"]

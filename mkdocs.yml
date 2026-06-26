@@ -1,0 +1,13 @@
+site_name: Jailbreaker
+site_description: Local offline LLM safety evaluation harness
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Configuration: configuration.md
+  - Architecture: architecture.md
+  - Security Model: security-model.md
+  - Local Development: local-development.md
+  - Release Process: release-process.md
+  - Changelog: changelog.md
