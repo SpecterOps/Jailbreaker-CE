@@ -8,7 +8,7 @@ Jailbreaker is a local offline evaluation harness for testing chatbot and agent 
 
 ## Blog
 
-Launch write-up: [Blog post coming soon](BLOG_POST_URL)
+Launch write-up: [Jailbreaker: LLM Jailbreak Testing You Can Actually Repeat](https://specterops.io/blog/2026/06/29/llm-jailbreak-testing-with-jailbreaker/)
 
 ## Quick Start
 
