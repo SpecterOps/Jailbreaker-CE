@@ -6,6 +6,27 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-20
+
+### Added
+
+- Independent run-scoped system prompts for Target, Attacker, and Judge roles without storing those prompts in reusable vault profiles.
+- Versioned Judge evaluation policies supporting standard criteria, explicit success and failure outcomes, and complete custom rubrics.
+- Shared Judge-policy controls across Dashboard runs, Experiment Design, and experiment retries.
+- Exact effective Judge inputs and explicit Judge-error details in run and experiment traces.
+
+### Changed
+
+- Made the standard Judge introduction describe a general rubric evaluator instead of a genetic-algorithm fitness function.
+- Gave session API keys precedence over saved profile keys while continuing to use saved profile endpoints and models.
+- Kept the standard Judge's additional run prompt blank by default while preserving its built-in scoring rubric.
+
+### Fixed
+
+- Prevented Target or Attacker system prompts from leaking into Judge requests when those clients are reused for evaluation.
+- Preserved failed Judge evaluations as retryable error results instead of silently presenting them as completed scores.
+- Used experiment unsafe intents independently from technique seed prompts.
+
 ## [0.1.0] - 2026-06-24
 
 ### Added

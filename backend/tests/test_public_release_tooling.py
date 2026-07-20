@@ -5,6 +5,7 @@ import os
 import stat
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 
@@ -54,6 +55,24 @@ def _smoke_script_source() -> str:
 
 def _optional_scanner_script_source() -> str:
     return (REPO_ROOT / "scripts" / "run_optional_scanners.sh").read_text(encoding="utf-8")
+
+
+def test_public_release_version_is_synchronized() -> None:
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    version = project["project"]["version"]
+    major_minor = ".".join(version.split(".")[:2])
+    lock = tomllib.loads((REPO_ROOT / "uv.lock").read_text(encoding="utf-8"))
+    locked_project = next(package for package in lock["package"] if package["name"] == "jailbreaker")
+
+    assert locked_project["version"] == version
+    assert f'JailbreakerAPI/{major_minor}' in (
+        REPO_ROOT / "backend" / "app" / "api" / "server.py"
+    ).read_text(encoding="utf-8")
+    for page in ("index.html", "experiments.html", "analysis.html", "history.html"):
+        assert f'<span class="brand-version">v{major_minor}</span>' in (
+            REPO_ROOT / "frontend" / "public" / page
+        ).read_text(encoding="utf-8")
+    assert f"## [{version}] - " in (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
 
 def _run_optional_scanners_with_fake_tools(

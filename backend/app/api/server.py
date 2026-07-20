@@ -51,7 +51,7 @@ class JsonBodyError(ValueError):
 
 
 class ApiHandler(BaseHTTPRequestHandler):
-    server_version = "JailbreakerAPI/0.1"
+    server_version = "JailbreakerAPI/0.2"
 
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(HTTPStatus.NO_CONTENT)
