@@ -256,6 +256,65 @@ def test_chat_client_extra_body_cannot_override_reserved_payload_fields(
     }
 
 
+def test_chat_client_prepends_configured_prompt_without_replacing_required_system_prompt(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(req, *, timeout, context):
+        captured["payload"] = json.loads(req.data.decode("utf-8"))
+        return FakeHTTPResponse()
+
+    monkeypatch.setattr("app.llm_client.urllib.request.urlopen", fake_urlopen)
+
+    messages = [
+        {"role": "system", "content": "Required scoring rubric."},
+        {"role": "user", "content": "Score this response."},
+    ]
+    client = ChatClient(
+        api_base_url="http://localhost:11434/v1",
+        api_key="test-key",
+        model="judge-model",
+        system_prompt="You are a careful evaluator.",
+    )
+    client.chat(messages)
+
+    assert captured["payload"]["messages"] == [
+        {
+            "role": "system",
+            "content": "You are a careful evaluator.\n\nRequired scoring rubric.",
+        },
+        {"role": "user", "content": "Score this response."},
+    ]
+    assert messages[0]["content"] == "Required scoring rubric."
+
+
+def test_chat_client_message_preparation_is_copying_and_idempotent() -> None:
+    messages = [{"role": "user", "content": "Score this response."}]
+    client = ChatClient(system_prompt="You are a careful evaluator.")
+
+    prepared = client.prepare_messages(messages)
+    prepared_again = client.prepare_messages(prepared)
+
+    assert prepared == [
+        {"role": "system", "content": "You are a careful evaluator."},
+        {"role": "user", "content": "Score this response."},
+    ]
+    assert prepared_again == prepared
+    assert messages == [{"role": "user", "content": "Score this response."}]
+    assert prepared[1] is not messages[0]
+
+
+def test_chat_client_without_configured_prompt_returns_copied_messages() -> None:
+    messages = [{"role": "system", "content": "Required scoring rubric."}]
+
+    prepared = ChatClient().prepare_messages(messages)
+
+    assert prepared == messages
+    assert prepared is not messages
+    assert prepared[0] is not messages[0]
+
+
 def test_chat_client_rejects_non_http_api_base_url_before_network_use() -> None:
     with pytest.raises(ValueError, match="http or https"):
         ChatClient(api_base_url="file:///tmp/local-model")

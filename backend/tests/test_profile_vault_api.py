@@ -63,6 +63,7 @@ def test_llm_vault_api_create_unlock_profile_lifecycle(monkeypatch) -> None:
             "provider": "openai",
             "base_url": "https://api.openai.com/v1",
             "model": "gpt-4o-mini",
+            "system_prompt": "Judge against the supplied policy.",
             "scope": "all",
             "api_key": "sk-test-secret",
         },
@@ -70,6 +71,7 @@ def test_llm_vault_api_create_unlock_profile_lifecycle(monkeypatch) -> None:
     assert status == 201
     profile = payload["item"]
     assert profile["name"] == "OpenAI primary"
+    assert "system_prompt" not in profile
     assert "api_key" not in profile
 
     status, payload = _request("GET", "/api/llm-profiles")

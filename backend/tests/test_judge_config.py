@@ -64,6 +64,7 @@ def test_build_judge_client_uses_custom_config() -> None:
             "judge_api_key": "judge-key",
             "judge_api_base_url": "http://judge.test/v1",
             "judge_model": "judge-model",
+            "judge_system_prompt": "Use the strict review profile.",
         },
         target_client=target,
         attacker_client=attacker,
@@ -73,6 +74,57 @@ def test_build_judge_client_uses_custom_config() -> None:
     assert judge.model == "judge-model"
     assert judge.api_base_url == "http://judge.test/v1"
     assert judge.api_key == "judge-key"
+    assert judge.system_prompt == "Use the strict review profile."
+
+
+def test_build_attacker_client_uses_run_system_prompt() -> None:
+    store = EvaluationStore(persistence=NoopRunPersistence())
+
+    attacker = store._build_attacker_client(
+        {
+            "attacker_api_key": "attacker-key",
+            "attacker_api_base_url": "http://attacker.test/v1",
+            "attacker_model": "attacker-model",
+            "attacker_system_prompt": "Generate concise candidates.",
+        }
+    )
+
+    assert attacker is not None
+    assert attacker.system_prompt == "Generate concise candidates."
+
+
+def test_target_selected_as_judge_uses_independent_run_system_prompt() -> None:
+    store = EvaluationStore(persistence=NoopRunPersistence())
+    target = ChatClient(model="target-model", system_prompt="Target instructions.")
+
+    judge = store._build_judge_client(
+        {
+            "judge_mode": "target",
+            "judge_system_prompt": "Judge instructions.",
+        },
+        target_client=target,
+        attacker_client=None,
+    )
+
+    assert judge is not target
+    assert judge.system_prompt == "Judge instructions."
+    assert target.system_prompt == "Target instructions."
+
+
+def test_attacker_selected_as_judge_does_not_inherit_attacker_system_prompt() -> None:
+    store = EvaluationStore(persistence=NoopRunPersistence())
+    target = ChatClient(model="target-model", system_prompt="Target instructions.")
+    attacker = ChatClient(model="attacker-model", system_prompt="Attacker instructions.")
+
+    judge = store._build_judge_client(
+        {"judge_mode": "attacker"},
+        target_client=target,
+        attacker_client=attacker,
+    )
+
+    assert judge is not attacker
+    assert judge.system_prompt == ""
+    assert attacker.system_prompt == "Attacker instructions."
 
 
 def test_localhost_urls_are_rewritten_for_container_clients() -> None:
@@ -139,26 +191,35 @@ def test_build_judge_client_supports_target_attacker_and_legacy_modes() -> None:
     target = ChatClient(model="target-model")
     attacker = ChatClient(model="attacker-model")
 
-    assert store._build_judge_client(
+    target_judge = store._build_judge_client(
         {"judge_mode": "target"},
         target_client=target,
         attacker_client=attacker,
-    ) is target
-    assert store._build_judge_client(
+    )
+    attacker_judge = store._build_judge_client(
         {"judge_mode": "attacker"},
         target_client=target,
         attacker_client=attacker,
-    ) is attacker
-    assert store._build_judge_client(
+    )
+    legacy_attacker_judge = store._build_judge_client(
         {},
         target_client=target,
         attacker_client=attacker,
-    ) is attacker
-    assert store._build_judge_client(
+    )
+    legacy_target_judge = store._build_judge_client(
         {},
         target_client=target,
         attacker_client=None,
-    ) is target
+    )
+
+    assert target_judge is not target
+    assert target_judge.model == "target-model"
+    assert attacker_judge is not attacker
+    assert attacker_judge.model == "attacker-model"
+    assert legacy_attacker_judge is not attacker
+    assert legacy_attacker_judge.model == "attacker-model"
+    assert legacy_target_judge is not target
+    assert legacy_target_judge.model == "target-model"
 
 
 def test_baseline_uses_selected_custom_judge() -> None:

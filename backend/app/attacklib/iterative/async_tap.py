@@ -29,7 +29,7 @@ import logging
 from dataclasses import dataclass
 
 from app.attacklib.base import AttackBuildRequest, IterationRound, IterativeAttackResult
-from app.llm_client import AsyncChatClient
+from app.llm_client import AsyncChatClient, prepare_judge_messages
 
 from .pair import _extract_prompt, _messages_to_str, _parse_judge_score
 from .prompts import ATTACKER_REFINE, ATTACKER_SYSTEM, JUDGE_SCHEMA, JUDGE_SYSTEM, JUDGE_USER
@@ -108,6 +108,7 @@ async def _evaluate_branch_child(
         {"role": "system", "content": JUDGE_SYSTEM},
         {"role": "user", "content": judge_user_content},
     ]
+    judge_messages = prepare_judge_messages(judge_client, judge_messages)
     judge_input_str = _messages_to_str(judge_messages)
     judge_raw, _ = await judge_client.chat_with_retry(
         judge_messages, temperature=0.0, response_format=JUDGE_SCHEMA,

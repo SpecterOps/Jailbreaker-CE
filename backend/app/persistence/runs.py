@@ -343,8 +343,9 @@ class PostgreSQLRunPersistence(RunPersistence):
             "judge": {
                 "score": str(result.get("judge_score", "")),
                 "rationale": result.get("judge_rationale", ""),
-                "input": "",
-                "output": "",
+                "input": result.get("judge_input", ""),
+                "output": result.get("judge_output", ""),
+                "error": result.get("judge_error", ""),
             },
         }]
         run_metadata = {
@@ -352,6 +353,7 @@ class PostgreSQLRunPersistence(RunPersistence):
             "succeeded": bool(result.get("succeeded", False)),
             "judge_score": int(result.get("judge_score", 0)),
             "judge_rationale": result.get("judge_rationale", ""),
+            "judge_error": result.get("judge_error", ""),
         }
         score = int(round((int(result.get("judge_score", 0)) / 10) * 100))
         asr = 100 if result.get("succeeded") else 0
@@ -371,7 +373,7 @@ class PostgreSQLRunPersistence(RunPersistence):
                     final_prompt, final_output, response_metadata, run_metadata,
                     created_at, completed_at
                 ) VALUES (
-                    %s, 'baseline', %s, 'completed', 'live', %s,
+                    %s, 'baseline', %s, %s, 'live', %s,
                     'baseline', 'Baseline', 'control', 'control',
                     'chatbot', 'baseline', %s, %s,
                     %s, %s,
@@ -384,6 +386,7 @@ class PostgreSQLRunPersistence(RunPersistence):
                 (
                     run_id,
                     evaluation_id,
+                    "error" if result.get("judge_error") else "completed",
                     requested_by,
                     target_config.get("model", ""),
                     target_config.get("api_base_url", ""),

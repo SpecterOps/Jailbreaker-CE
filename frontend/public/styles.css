@@ -1176,6 +1176,162 @@ h1, h2, h3, h4, p { margin: 0; }
   white-space: nowrap;
 }
 
+.operator-judge-policy-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: auto;
+  padding-top: var(--sp-1);
+  border-top: 1px solid var(--border-light);
+}
+
+.judge-policy-summary-root {
+  margin-top: auto;
+}
+
+.judge-policy-summary-root .operator-judge-policy-summary {
+  margin-top: 0;
+}
+
+.judge-policy-badge {
+  overflow: hidden;
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.operator-judge-policy-editor {
+  margin-top: var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+}
+
+.operator-judge-policy-editor[hidden],
+.judge-policy-fields[hidden] {
+  display: none !important;
+}
+
+.judge-policy-editor-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.judge-policy-editor-header h3 {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-base);
+}
+
+.judge-policy-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+
+.judge-policy-mode-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.judge-policy-mode-card:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.judge-policy-mode-card input {
+  margin-top: 3px;
+}
+
+.judge-policy-mode-card span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.judge-policy-mode-card strong {
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+.judge-policy-mode-card small {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.judge-policy-scope-hint {
+  display: block;
+  margin-top: var(--sp-2);
+}
+
+.judge-policy-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+
+.judge-policy-fields textarea {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.judge-policy-rubric-field {
+  grid-column: 1 / -1;
+}
+
+.judge-policy-rubric-field textarea {
+  min-height: 190px;
+}
+
+.judge-policy-preview-shell {
+  margin-top: var(--sp-3);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.judge-policy-preview-shell summary {
+  padding: var(--sp-3);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 750;
+}
+
+.judge-policy-preview-shell pre {
+  max-height: 320px;
+  margin: 0;
+  padding: 0 var(--sp-3) var(--sp-3);
+  overflow: auto;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.judge-policy-preview-disclaimer {
+  display: block;
+  padding: 0 var(--sp-3) var(--sp-3);
+  font-style: italic;
+}
+
 .operator-profile-editor {
   margin-top: var(--sp-4);
   padding: var(--sp-4);
@@ -1218,6 +1374,22 @@ h1, h2, h3, h4, p { margin: 0; }
 
 .profile-editor-key-field[hidden] {
   display: none !important;
+}
+
+.profile-editor-system-prompt {
+  grid-column: 1 / -1;
+  align-self: stretch;
+}
+
+.profile-editor-system-prompt textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.field-hint {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.4;
 }
 
 .profile-editor-local-toggle {
@@ -3001,7 +3173,9 @@ body.show-raw-input .chat-raw-input { display: block; }
   .operator-run-strip,
   .operator-profile-row,
   .operator-config-summary,
-  .profile-editor-grid {
+  .profile-editor-grid,
+  .judge-policy-mode-grid,
+  .judge-policy-fields {
     grid-template-columns: 1fr;
   }
 
@@ -3888,6 +4062,13 @@ body.show-raw-input .conv-raw-input    { display: block; }
   background: rgba(248, 81, 73, 0.08);
   border: 1px solid rgba(248, 81, 73, 0.2);
   color: var(--text-secondary);
+}
+
+.judge-error {
+  background: rgba(248, 81, 73, 0.12);
+  border: 1px solid rgba(248, 81, 73, 0.35);
+  color: var(--danger, #f85149);
+  overflow-wrap: anywhere;
 }
 
 /* Data Explorer */

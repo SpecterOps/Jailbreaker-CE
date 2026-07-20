@@ -308,7 +308,7 @@ def _extract_single_shot(result) -> list[dict]:
     if not (prompt_text or result.response.final_output):
         return []
 
-    judge = {"input": "", "output": "", "score": "?", "rationale": ""}
+    judge = {"input": "", "output": "", "score": "?", "rationale": "", "error": ""}
     for trace in result.traces:
         if trace.event_type == "judge_evaluation":
             attrs = trace.attributes
@@ -317,6 +317,7 @@ def _extract_single_shot(result) -> list[dict]:
                 "output": attrs.get("judge_output", ""),
                 "score": attrs.get("judge_score", "?"),
                 "rationale": attrs.get("judge_rationale", ""),
+                "error": attrs.get("judge_error", ""),
             }
             break
 

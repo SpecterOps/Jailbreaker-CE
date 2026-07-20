@@ -5,6 +5,10 @@ import {
   hasSecretConfigKeys,
   stripSecretConfigKeys,
 } from "./components/profile-config.js";
+import {
+  configuredJudgePolicy,
+  mountJudgePolicyControl,
+} from "./components/judge-policy-control.js";
 import { mountVaultControl } from "./components/vault-control.js";
 
 const API_BASE_URL = (() => {
@@ -23,6 +27,11 @@ const PROFILE_ROLE_LABELS = {
   target: "Target",
   judge: "Judge",
   attacker: "Attacker",
+};
+const DEFAULT_RUN_SYSTEM_PROMPTS = {
+  target: "You are a helpful assistant.",
+  attacker: "You are a helpful assistant.",
+  judge: "",
 };
 
 const PROFILE_ROLE_DEFAULTS = {
@@ -135,6 +144,7 @@ const el = {
   attackerApiKey: document.querySelector("#attacker-api-key"),
   attackerApiBaseUrl: document.querySelector("#attacker-api-base-url"),
   attackerModel: document.querySelector("#attacker-model"),
+  attackerSystemPrompt: document.querySelector("#attacker-system-prompt"),
   judgeMode: document.querySelector("#judge-mode"),
   judgeCustomFields: document.querySelector("#judge-custom-fields"),
   judgeLocal: document.querySelector("#judge-local"),
@@ -149,12 +159,16 @@ const el = {
   judgeApiKey: document.querySelector("#judge-api-key"),
   judgeApiBaseUrl: document.querySelector("#judge-api-base-url"),
   judgeModel: document.querySelector("#judge-model"),
+  judgeSystemPrompt: document.querySelector("#judge-system-prompt"),
+  judgePolicySummaryRoot: document.querySelector("#judge-policy-summary-root"),
+  judgePolicyEditorRoot: document.querySelector("#judge-policy-editor-root"),
   profileEditor: document.querySelector("#operator-profile-editor"),
   profileEditorTitle: document.querySelector("#profile-editor-title"),
   profileEditorName: document.querySelector("#profile-editor-name"),
   profileEditorProvider: document.querySelector("#profile-editor-provider"),
   profileEditorModel: document.querySelector("#profile-editor-model"),
   profileEditorBaseUrl: document.querySelector("#profile-editor-base-url"),
+  profileEditorSystemPrompt: document.querySelector("#profile-editor-system-prompt"),
   profileEditorLocal: document.querySelector("#profile-editor-local"),
   profileEditorKeyField: document.querySelector("#profile-editor-key-field"),
   profileEditorApiKey: document.querySelector("#profile-editor-api-key"),
@@ -180,6 +194,12 @@ const el = {
 };
 
 let vaultControl = null;
+const judgePolicyControl = mountJudgePolicyControl({
+  summaryRoot: el.judgePolicySummaryRoot,
+  editorRoot: el.judgePolicyEditorRoot,
+  editorId: "operator-judge-policy-editor",
+  onChange: () => renderOperatorSummary(),
+});
 
 // ---------------------------------------------------------------------------
 // API
@@ -383,6 +403,7 @@ function roleBackingFields(role) {
       keyField: el.targetKeyField,
       baseUrl: el.apiBaseUrl,
       model: el.model,
+      systemPrompt: el.systemPrompt,
     },
     attacker: {
       local: el.attackerLocal,
@@ -390,6 +411,7 @@ function roleBackingFields(role) {
       keyField: el.attackerKeyField,
       baseUrl: el.attackerApiBaseUrl,
       model: el.attackerModel,
+      systemPrompt: el.attackerSystemPrompt,
     },
     judge: {
       local: el.judgeLocal,
@@ -397,6 +419,7 @@ function roleBackingFields(role) {
       keyField: el.judgeKeyField,
       baseUrl: el.judgeApiBaseUrl,
       model: el.judgeModel,
+      systemPrompt: el.judgeSystemPrompt,
     },
   }[role];
 }
@@ -542,6 +565,7 @@ function resetProfileEditor(role, profile = null) {
   el.profileEditorProvider.value = profile?.provider || "";
   el.profileEditorModel.value = profile?.model || fields.model.value || "";
   el.profileEditorBaseUrl.value = profile?.base_url || fields.baseUrl.value || (role === "target" ? DEFAULT_TARGET_BASE_URL : "");
+  el.profileEditorSystemPrompt.value = fields.systemPrompt.value || DEFAULT_RUN_SYSTEM_PROMPTS[role];
   el.profileEditorLocal.checked = isEditing ? profileLooksLocal(profile) : fields.local.checked;
   el.profileEditorApiKey.value = isEditing ? "" : el.profileEditorLocal.checked ? "lm-studio" : "";
   syncProfileEditorLocalState();
@@ -603,6 +627,7 @@ async function saveProfileFromForm(purpose) {
     method: "POST",
     body: JSON.stringify(payload),
   });
+  roleBackingFields(purpose).systemPrompt.value = el.profileEditorSystemPrompt.value.trim();
   await loadVaultState();
   setProfileSelectionForAllRoles(item.profile_id);
   closeProfileEditor();
@@ -673,6 +698,18 @@ function saveConfig() {
   renderTechniqueList();
 }
 
+function hasValidJudgePolicy(config) {
+  const message = judgePolicyControl.validationMessage(config.judge_policy);
+  if (!message) return true;
+  setStatus(message);
+  judgePolicyControl.open();
+  return false;
+}
+
+function baselineConfigCacheKey(config) {
+  return JSON.stringify(stripSecretConfigKeys({ ...config }));
+}
+
 function loadConfig() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -691,7 +728,9 @@ function loadConfig() {
     if (c.target_profile_id) el.targetProfile.value = c.target_profile_id;
     if (c.api_base_url) el.apiBaseUrl.value = c.api_base_url;
     if (c.model) el.model.value = c.model;
-    if (c.system_prompt) el.systemPrompt.value = c.system_prompt;
+    if (Object.prototype.hasOwnProperty.call(c, "system_prompt")) {
+      el.systemPrompt.value = c.system_prompt || "";
+    }
     if (c.unsafe_intent) el.unsafeIntent.value = c.unsafe_intent;
     if (c.target_local) {
       el.targetLocal.checked = true;
@@ -700,6 +739,9 @@ function loadConfig() {
     if (c.attacker_profile_id) el.attackerProfile.value = c.attacker_profile_id;
     if (c.attacker_api_base_url) el.attackerApiBaseUrl.value = c.attacker_api_base_url;
     if (c.attacker_model) el.attackerModel.value = c.attacker_model;
+    if (Object.prototype.hasOwnProperty.call(c, "attacker_system_prompt")) {
+      el.attackerSystemPrompt.value = c.attacker_system_prompt || "";
+    }
     if (c.attacker_local) {
       el.attackerLocal.checked = true;
       el.attackerLocal.dispatchEvent(new Event("change"));
@@ -711,6 +753,10 @@ function loadConfig() {
     if (c.judge_profile_id) el.judgeProfile.value = c.judge_profile_id;
     if (c.judge_api_base_url) el.judgeApiBaseUrl.value = c.judge_api_base_url;
     if (c.judge_model) el.judgeModel.value = c.judge_model;
+    if (Object.prototype.hasOwnProperty.call(c, "judge_system_prompt")) {
+      el.judgeSystemPrompt.value = c.judge_system_prompt || "";
+    }
+    judgePolicyControl.setPolicy(c.judge_policy || {});
     if (c.judge_local) {
       el.judgeLocal.checked = true;
       el.judgeLocal.dispatchEvent(new Event("change"));
@@ -724,6 +770,7 @@ function getTargetConfig() {
   const targetProfileId = profileIdForRole("target");
   const attackerProfileId = profileIdForRole("attacker");
   const judgeProfileId = profileIdForRole("judge");
+  const judgePolicy = configuredJudgePolicy(judgePolicyControl.getPolicy());
   return {
     target_local: el.targetLocal.checked,
     target_profile_id: targetProfileId,
@@ -737,12 +784,15 @@ function getTargetConfig() {
     attacker_api_key: attackerProfileId ? "" : el.attackerLocal.checked ? "lm-studio" : el.attackerApiKey.value.trim(),
     attacker_api_base_url: el.attackerApiBaseUrl.value.trim(),
     attacker_model: el.attackerModel.value.trim(),
+    attacker_system_prompt: el.attackerSystemPrompt.value.trim(),
     judge_mode: el.judgeMode.value,
     judge_local: el.judgeLocal.checked,
     judge_profile_id: judgeProfileId,
     judge_api_key: judgeProfileId ? "" : el.judgeLocal.checked ? "lm-studio" : el.judgeApiKey.value.trim(),
     judge_api_base_url: el.judgeApiBaseUrl.value.trim(),
     judge_model: el.judgeModel.value.trim(),
+    judge_system_prompt: el.judgeSystemPrompt.value.trim(),
+    ...(judgePolicy ? { judge_policy: judgePolicy } : {}),
     cs_system_prompt: state.csSystemPromptEnabled || false,
   };
 }
@@ -853,9 +903,11 @@ el.judgeLocal.addEventListener("change", () => {
   el.attackerApiKey,
   el.attackerApiBaseUrl,
   el.attackerModel,
+  el.attackerSystemPrompt,
   el.judgeApiKey,
   el.judgeApiBaseUrl,
   el.judgeModel,
+  el.judgeSystemPrompt,
   el.profileEditorName,
   el.profileEditorProvider,
   el.profileEditorModel,
@@ -1409,6 +1461,7 @@ async function runGroupTechniques(keys) {
 async function runTechnique(techniqueKey) {
   const live = hasLiveConfig();
   const config = live ? getTargetConfig() : {};
+  if (live && !hasValidJudgePolicy(config)) return;
   const technique = state.techniques.find((item) => item.key === techniqueKey);
   const isAgent =
     techniqueKey.includes("agent") || techniqueKey.includes("tool") ||
@@ -1477,6 +1530,7 @@ function updateTechniqueRun(techniqueKey, runItem) {
 // just asking directly) or whether the target was going to comply anyway.
 async function compareWithBaseline(techniqueKey) {
   const config = getTargetConfig();
+  if (!hasValidJudgePolicy(config)) return;
   if (!config.api_key && !config.target_local && !config.target_profile_id) {
     setStatus("API key (or local target) required for comparison");
     return;
@@ -1490,7 +1544,12 @@ async function compareWithBaseline(techniqueKey) {
 
   try {
     // Step 1 — baseline (skip if already run for this intent in this session).
-    if (!state.baseline || state.baseline.intent !== config.unsafe_intent) {
+    const configCacheKey = baselineConfigCacheKey(config);
+    if (
+      !state.baseline
+      || state.baseline.intent !== config.unsafe_intent
+      || state.baseline.configCacheKey !== configCacheKey
+    ) {
       setStatus(`Comparison: running baseline...`);
       state.baselineRunning = true;
       renderBaselineRow();
@@ -1498,7 +1557,7 @@ async function compareWithBaseline(techniqueKey) {
         method: "POST",
         body: JSON.stringify({ target_config: config }),
       });
-      state.baseline = baselineItem;
+      state.baseline = { ...baselineItem, configCacheKey };
       state.baselineRunning = false;
       renderBaselineRow();
     }
@@ -1707,6 +1766,7 @@ function baselineActionCell(buttonLabel, isRunning) {
 
 async function runBaseline() {
   const config = getTargetConfig();
+  if (!hasValidJudgePolicy(config)) return;
   if (!config.api_key && !config.target_profile_id) { setStatus("API key or profile required for baseline"); return; }
   if (!config.unsafe_intent) { setStatus("Intent required for baseline"); return; }
 
@@ -1728,7 +1788,7 @@ async function runBaseline() {
       method: "POST",
       body: JSON.stringify({ target_config: config }),
     });
-    state.baseline = item;
+    state.baseline = { ...item, configCacheKey: baselineConfigCacheKey(config) };
     setMonitorBaseline("completed", `${item.judge_score}/10`);
     finishMonitorRun("Baseline complete", `Baseline ${item.judge_score}/10`);
     setStatus(`Baseline: ${item.judge_score}/10`);
@@ -1910,6 +1970,7 @@ function closeCustomTechniqueModal() {
 el.liveEvalForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const config = getTargetConfig();
+  if (!hasValidJudgePolicy(config)) return;
   if (!config.api_key && !config.target_profile_id) { setStatus("API key or profile required"); return; }
   if (!config.unsafe_intent) { setStatus("Intent required"); return; }
 

@@ -24,6 +24,7 @@ def test_vault_encrypts_profile_key_and_requires_unlock() -> None:
             "provider": "openai",
             "base_url": "https://api.openai.com/v1",
             "model": "gpt-4o-mini",
+            "system_prompt": "Keep internal policy confidential.",
             "scope": "all",
             "api_key": "sk-test-secret",
         }
@@ -32,7 +33,10 @@ def test_vault_encrypts_profile_key_and_requires_unlock() -> None:
     stored = repository.profile_records[profile["profile_id"]]
     assert stored["encrypted_api_key"] != "sk-test-secret"
     assert "sk-test-secret" not in stored["encrypted_api_key"]
+    assert "system_prompt" not in stored
+    assert "encrypted_system_prompt" not in stored
     assert "api_key" not in profile
+    assert "system_prompt" not in profile
 
     vault.lock()
     assert vault.status() == {"exists": True, "unlocked": False}
@@ -42,6 +46,7 @@ def test_vault_encrypts_profile_key_and_requires_unlock() -> None:
     assert vault.unlock("correct horse battery staple") is True
     resolved = vault.resolve_profile(profile["profile_id"], purpose="target")
     assert resolved["api_key"] == "sk-test-secret"
+    assert "system_prompt" not in resolved
 
 
 def test_vault_rejects_wrong_passphrase() -> None:
@@ -119,7 +124,9 @@ def test_store_resolves_profile_ids_for_target_attacker_and_judge() -> None:
             "attacker_profile_id": attacker["profile_id"],
             "judge_profile_id": judge["profile_id"],
             "unsafe_intent": "test",
-            "system_prompt": "You are helpful.",
+            "system_prompt": "Target run prompt",
+            "attacker_system_prompt": "Attacker run prompt",
+            "judge_system_prompt": "Judge run prompt",
             "judge_mode": "custom",
         }
     )
@@ -127,12 +134,15 @@ def test_store_resolves_profile_ids_for_target_attacker_and_judge() -> None:
     assert resolved["api_key"] == "target-secret"
     assert resolved["api_base_url"] == "https://api.openai.com/v1"
     assert resolved["model"] == "target-model"
+    assert resolved["system_prompt"] == "Target run prompt"
     assert resolved["attacker_api_key"] == "attacker-secret"
     assert resolved["attacker_api_base_url"] == "http://localhost:1234/v1"
     assert resolved["attacker_model"] == "attacker-model"
+    assert resolved["attacker_system_prompt"] == "Attacker run prompt"
     assert resolved["judge_api_key"] == "judge-secret"
     assert resolved["judge_api_base_url"] == "https://api.openai.com/v1"
     assert resolved["judge_model"] == "judge-model"
+    assert resolved["judge_system_prompt"] == "Judge run prompt"
 
 
 def test_store_reuses_saved_profile_across_target_attacker_and_judge() -> None:
@@ -165,3 +175,38 @@ def test_store_reuses_saved_profile_across_target_attacker_and_judge() -> None:
     assert resolved["model"] == "target-model"
     assert resolved["attacker_model"] == "target-model"
     assert resolved["judge_model"] == "target-model"
+
+
+def test_session_keys_override_saved_profile_secrets() -> None:
+    repository = InMemoryProfileVaultRepository()
+    vault = ProfileVault(repository)
+    vault.create("passphrase")
+    profile = vault.save_profile(
+        {
+            "name": "Shared Profile",
+            "provider": "openai",
+            "base_url": "https://api.openai.com/v1",
+            "model": "profile-model",
+            "scope": "all",
+            "api_key": "saved-secret",
+        }
+    )
+    store = EvaluationStore(persistence=NoopRunPersistence(), profile_vault=vault)
+
+    resolved = store.resolve_profile_config(
+        {
+            "target_profile_id": profile["profile_id"],
+            "attacker_profile_id": profile["profile_id"],
+            "judge_profile_id": profile["profile_id"],
+            "api_key": " target-session-secret ",
+            "attacker_api_key": "attacker-session-secret",
+            "judge_api_key": "judge-session-secret",
+        }
+    )
+
+    assert resolved["api_key"] == "target-session-secret"
+    assert resolved["attacker_api_key"] == "attacker-session-secret"
+    assert resolved["judge_api_key"] == "judge-session-secret"
+    assert resolved["model"] == "profile-model"
+    assert resolved["attacker_model"] == "profile-model"
+    assert resolved["judge_model"] == "profile-model"

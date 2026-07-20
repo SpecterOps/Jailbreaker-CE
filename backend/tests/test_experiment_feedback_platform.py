@@ -2,6 +2,7 @@ import sys
 
 sys.path.insert(0, "backend")
 
+from app.api.models import RunSummary
 from app.api.store import EvaluationStore, ExperimentState
 from app.persistence import NoopRunPersistence
 
@@ -79,6 +80,115 @@ def test_experiment_report_includes_wilson_ci_and_score_stddev() -> None:
     assert report["asr_ci_high"] == 95.4
     assert report["score_stddev"] == 29.5
     assert report["technique_stats"]["crescendo_liar"]["asr_ci_low"] == 30.1
+
+
+def test_experiment_dataset_prompt_does_not_replace_technique_template() -> None:
+    store = EvaluationStore(persistence=NoopRunPersistence())
+    state = _experiment_state(repeat_count=1)
+    state.technique_keys = ["aim"]
+    state.dataset["prompts"] = [{"id": "p1", "text": "dataset intent", "category": "cat-a"}]
+    state.total_cells = 1
+    store._experiments[state.experiment_id] = state
+    captured_configs = []
+
+    def fake_execute_single(**kwargs):
+        captured_configs.append(kwargs["target_config"])
+        return RunSummary(
+            run_id="run-aim",
+            technique_key="aim",
+            target_kind="chatbot",
+            status="completed",
+            score=0,
+            asr=0,
+            matched_detections=0,
+            detections=(),
+            highest_severity="info",
+            conversation=[],
+        ), object()
+
+    store._execute_single = fake_execute_single
+    store._run_experiment(
+        state.experiment_id,
+        {"model": "target-model", "seed_prompt": "must not replace AIM"},
+        "target-key",
+    )
+
+    assert captured_configs[0]["unsafe_intent"] == "dataset intent"
+    assert "seed_prompt" not in captured_configs[0]
+
+
+def test_experiment_retry_does_not_restore_dataset_prompt_as_seed() -> None:
+    store = EvaluationStore(persistence=NoopRunPersistence())
+    state = _experiment_state(repeat_count=1)
+    state.technique_keys = ["aim"]
+    state.dataset["prompts"] = [{"id": "p1", "text": "dataset intent", "category": "cat-a"}]
+    state.total_cells = 1
+    store._experiments[state.experiment_id] = state
+    captured_configs = []
+
+    def fake_execute_single(**kwargs):
+        captured_configs.append(kwargs["target_config"])
+        return RunSummary(
+            run_id="run-aim-retry",
+            technique_key="aim",
+            target_kind="chatbot",
+            status="completed",
+            score=0,
+            asr=0,
+            matched_detections=0,
+            detections=(),
+            highest_severity="info",
+            conversation=[],
+        ), object()
+
+    store._execute_single = fake_execute_single
+    store._run_experiment_retry(
+        state.experiment_id,
+        [("aim", state.dataset["prompts"][0], 1)],
+        {"model": "target-model", "seed_prompt": "must not replace AIM"},
+        "target-key",
+    )
+
+    assert captured_configs[0]["unsafe_intent"] == "dataset intent"
+    assert "seed_prompt" not in captured_configs[0]
+
+
+def test_experiment_keeps_judge_failure_cells_retryable_with_conversation() -> None:
+    store = EvaluationStore(persistence=NoopRunPersistence())
+    state = _experiment_state(repeat_count=1)
+    state.technique_keys = ["aim"]
+    state.dataset["prompts"] = [{"id": "p1", "text": "dataset intent", "category": "cat-a"}]
+    state.total_cells = 1
+    store._experiments[state.experiment_id] = state
+
+    def fake_execute_single(**kwargs):
+        return RunSummary(
+            run_id="run-judge-error",
+            technique_key="aim",
+            target_kind="chatbot",
+            status="error",
+            score=0,
+            asr=0,
+            matched_detections=0,
+            detections=(),
+            highest_severity="info",
+            conversation=[
+                {
+                    "kind": "single_shot",
+                    "response": "Preserved target response.",
+                    "judge": {"error": "judge provider rejected the request"},
+                }
+            ],
+            error="judge provider rejected the request",
+        ), object()
+
+    store._execute_single = fake_execute_single
+    store._run_experiment(state.experiment_id, {"model": "target-model"}, "target-key")
+
+    cell = state.cell_results[0]
+    assert cell["status"] == "error"
+    assert cell["error"] == "judge provider rejected the request"
+    assert cell["conversation"][0]["response"] == "Preserved target response."
 
 
 def test_experiment_metrics_do_not_emit_removed_ablation() -> None:

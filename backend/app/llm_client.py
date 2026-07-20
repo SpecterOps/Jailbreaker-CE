@@ -16,6 +16,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
+from typing import Mapping, Sequence
 
 log = logging.getLogger("llm_client")
 
@@ -28,6 +29,18 @@ _RESERVED_EXTRA_BODY_KEYS = {
     "response_format",
 }
 _ALLOWED_API_BASE_URL_SCHEMES = {"http", "https"}
+
+
+def prepare_judge_messages(
+    judge_client: object,
+    messages: Sequence[Mapping[str, str]],
+) -> list[dict[str, str]]:
+    """Prepare one message list for both an outbound call and its run trace."""
+
+    preparer = getattr(judge_client, "prepare_messages", None)
+    if callable(preparer):
+        return preparer([dict(message) for message in messages])
+    return [dict(message) for message in messages]
 
 
 def _safe_extra_body(extra_body: dict[str, object] | None) -> dict[str, object]:
@@ -83,9 +96,28 @@ class ChatClient:
     temperature: float = 0.7
     max_tokens: int = 1024
     extra_headers: dict[str, str] = field(default_factory=dict)
+    system_prompt: str = ""
 
     def __post_init__(self) -> None:
         self.api_base_url = _validate_api_base_url(self.api_base_url)
+
+    def prepare_messages(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
+        """Compose the configured prompt without mutating or duplicating input."""
+
+        configured_prompt = str(self.system_prompt or "").strip()
+        prepared = [dict(message) for message in messages]
+        if not configured_prompt:
+            return prepared
+        if prepared and prepared[0].get("role") == "system":
+            existing = str(prepared[0].get("content", "") or "").strip()
+            if existing == configured_prompt or existing.startswith(f"{configured_prompt}\n\n"):
+                return prepared
+            prepared[0]["content"] = (
+                f"{configured_prompt}\n\n{existing}" if existing else configured_prompt
+            )
+            return prepared
+        prepared.insert(0, {"role": "system", "content": configured_prompt})
+        return prepared
 
     def chat(
         self,
@@ -134,7 +166,7 @@ class ChatClient:
 
         payload: dict = {
             "model": self.model,
-            "messages": messages,
+            "messages": self.prepare_messages(messages),
             "temperature": temp,
             token_key: tokens,
         }
@@ -266,6 +298,11 @@ class AsyncChatClient:
     def __init__(self, client: ChatClient, *, max_concurrency: int = 5) -> None:
         self._client = client
         self._semaphore = asyncio.Semaphore(max_concurrency)
+
+    def prepare_messages(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
+        """Expose the wrapped client's outbound messages for accurate traces."""
+
+        return self._client.prepare_messages(messages)
 
     async def chat(
         self,

@@ -31,7 +31,7 @@ import logging
 import re
 
 from app.attacklib.base import AttackBuildRequest, IterationRound, IterativeAttackResult
-from app.llm_client import ChatClient
+from app.llm_client import ChatClient, prepare_judge_messages
 from app.memory.conversation import ConversationMemory, ConversationSession
 from app.scoring.refusal_scorer import score_refusal
 
@@ -365,6 +365,7 @@ def run_crescendo_liar_loop(
                 {"role": "system", "content": JUDGE_SYSTEM},
                 {"role": "user", "content": judge_user_content},
             ]
+            judge_messages = prepare_judge_messages(resolved_judge_client, judge_messages)
             judge_input_str = _messages_to_str(judge_messages)
             judge_output_str, _ = resolved_judge_client.chat_with_retry(
                 judge_messages, temperature=0.0, response_format=JUDGE_SCHEMA,
@@ -491,6 +492,7 @@ def run_crescendo_liar_loop(
             {"role": "system", "content": JUDGE_SYSTEM},
             {"role": "user", "content": judge_user_content},
         ]
+        judge_messages = prepare_judge_messages(resolved_judge_client, judge_messages)
         judge_input_str = _messages_to_str(judge_messages)
         judge_output_str, _ = resolved_judge_client.chat_with_retry(
             judge_messages, temperature=0.0, response_format=JUDGE_SCHEMA,

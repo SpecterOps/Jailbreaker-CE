@@ -7,6 +7,7 @@ const script = readFileSync(new URL("../public/experiments.js", import.meta.url)
 const css = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
 const componentUrl = new URL("../public/components/sidebar-nav.js", import.meta.url);
 const profileConfig = readFileSync(new URL("../public/components/profile-config.js", import.meta.url), "utf8");
+const judgePolicyControl = readFileSync(new URL("../public/components/judge-policy-control.js", import.meta.url), "utf8");
 const vaultControl = readFileSync(new URL("../public/components/vault-control.js", import.meta.url), "utf8");
 const htmlSink = "inner" + "HTML";
 
@@ -172,6 +173,14 @@ test("experiments save profile ids instead of raw API keys", () => {
   );
 });
 
+test("experiments explain session-key precedence over saved profiles", () => {
+  assert.equal(
+    (html.match(/session key overrides the selected profile's saved key/g) || []).length,
+    3,
+    "target, attacker, and custom Judge fields should explain session-key precedence",
+  );
+});
+
 test("experiments judge profile selector can use target or attacker as judge", () => {
   assert.match(script, /EXPERIMENT_JUDGE_TARGET_VALUE\s*=\s*"__judge_target__"/, "experiments should define a target-as-judge sentinel");
   assert.match(script, /EXPERIMENT_JUDGE_ATTACKER_VALUE\s*=\s*"__judge_attacker__"/, "experiments should define an attacker-as-judge sentinel");
@@ -183,6 +192,23 @@ test("experiments judge profile selector can use target or attacker as judge", (
     /judge_profile_id:\s*el\.judgeProfile\.value/,
     "experiments should not persist judge source sentinels as profile ids",
   );
+});
+
+test("experiments use the shared configurable judge policy", () => {
+  assert.match(html, /id="exp-judge-policy-summary-root"/, "design should mount the shared Judge policy summary");
+  assert.match(html, /id="exp-judge-policy-editor-root"/, "design should mount the shared Judge policy editor");
+  assert.match(script, /mountJudgePolicyControl/, "experiments should mount the shared Judge policy component");
+  assert.match(script, /configuredJudgePolicy/, "experiments should serialize non-standard Judge policies");
+  assert.match(script, /judge_policy: judgePolicy/, "experiment target config should include configured Judge criteria");
+  assert.match(script, /judgePolicyControl\.validationMessage/, "experiments should validate Judge criteria before starting");
+  assert.match(script, /retryJudgePolicyControl\.setPolicy\(targetConfig\.judge_policy \|\| \{\}\)/, "retry should display the experiment's Judge policy");
+  assert.match(script, /configuredJudgePolicy\(retryJudgePolicyControl\.getPolicy\(\)\)/, "retry should serialize the reviewed Judge policy");
+  assert.match(script, /retryJudgePolicyControl\.validationMessage\(\)/, "retry should validate edited Judge criteria");
+  assert.match(script, /id = "retry-judge-policy-summary-root"/, "retry dialog should mount a policy summary");
+  assert.match(script, /id = "retry-judge-policy-editor-root"/, "retry dialog should mount a policy editor");
+  assert.match(judgePolicyControl, /Success looks like/, "shared control should expose outcome success criteria");
+  assert.match(judgePolicyControl, /Failure looks like/, "shared control should expose outcome failure criteria");
+  assert.match(judgePolicyControl, /Complete rubric/, "shared control should expose the advanced rubric");
 });
 
 test("experiments profile selectors render options without innerHTML", () => {
@@ -238,12 +264,19 @@ test("experiments retry and rejudge overlays avoid innerHTML", () => {
   assert.doesNotMatch(script, /overlay\.innerHTML\b/, "experiment action overlays should render forms with DOM nodes and textContent");
 });
 
+test("experiment conversations render Judge failures explicitly", () => {
+  assert.match(script, /if \(judge\.error\)/, "single-shot conversations should detect Judge errors");
+  assert.match(script, /"Judge Error"/, "conversation modal should label Judge failures");
+  assert.match(css, /\.judge-error\s*\{/, "Judge errors should have a distinct visual treatment");
+});
+
 test("experiments conversation modal avoids innerHTML", () => {
   assert.doesNotMatch(script, /modalBody\.innerHTML\b/, "experiment conversation modal should render with DOM nodes and textContent");
 });
 
 test("experiments script has no direct innerHTML usage", () => {
   assert.doesNotMatch(script, /\.innerHTML\b/, "experiments script should avoid direct HTML injection entirely");
+  assert.doesNotMatch(judgePolicyControl, /\.innerHTML\b/, "shared Judge policy control should avoid HTML injection");
   assert.doesNotMatch(vaultControl, /\.innerHTML\b/, "shared vault helper should avoid direct HTML injection");
 });
 

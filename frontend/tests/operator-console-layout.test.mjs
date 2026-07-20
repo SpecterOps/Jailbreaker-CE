@@ -6,6 +6,7 @@ const html = readFileSync(new URL("../public/index.html", import.meta.url), "utf
 const css = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
 const app = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
 const domHelpers = readFileSync(new URL("../public/components/dom.js", import.meta.url), "utf8");
+const judgePolicyControl = readFileSync(new URL("../public/components/judge-policy-control.js", import.meta.url), "utf8");
 const profileConfig = readFileSync(new URL("../public/components/profile-config.js", import.meta.url), "utf8");
 const vaultControl = readFileSync(new URL("../public/components/vault-control.js", import.meta.url), "utf8");
 const htmlSink = "inner" + "HTML";
@@ -76,9 +77,38 @@ test("operator run control uses profile selector blocks instead of credential de
   assert.match(html, /id="operator-profile-editor"/, "dashboard should render one shared profile editor");
   assert.match(html, /id="profile-editor-save-btn"/, "shared editor should save profiles");
   assert.match(html, /id="profile-editor-cancel-btn"/, "shared editor should cancel edits");
+  assert.match(html, /id="profile-editor-system-prompt"/, "configure and edit should expose the role's run prompt");
+  assert.equal((html.match(/System Prompt\*/g) || []).length, 1, "the shared editor should mark its prompt with an asterisk");
+  assert.equal((html.match(/You are a helpful assistant\./g) || []).length, 2, "Target and Attacker should have a basic default prompt");
+  assert.match(html, /<textarea id="judge-system-prompt"><\/textarea>/, "Judge should have no additional run prompt by default");
+  assert.match(html, /not saved with the LLM profile/, "the prompt ownership boundary should be visible");
+  assert.match(html, /prepended to Jailbreaker's required instructions/, "prompt composition should be explained");
   assert.doesNotMatch(html, /<details class="operator-config-details"/, "target credential details should be removed");
   assert.doesNotMatch(html, /id="attacker-config-section"/, "attacker credential details should be removed");
   assert.doesNotMatch(html, /id="judge-config-section"/, "judge credential details should be removed");
+});
+
+test("judge card exposes backward-compatible configurable evaluation policies", () => {
+  assert.match(html, /id="judge-policy-summary-root"/, "judge card should mount the shared policy summary");
+  assert.match(html, /id="judge-policy-editor-root"/, "dashboard should mount the shared policy editor");
+  assert.match(judgePolicyControl, /Evaluation Criteria/, "shared control should expose evaluation criteria");
+  assert.match(judgePolicyControl, /JUDGE_POLICY_OUTCOMES/, "policy editor should offer outcome definitions");
+  assert.match(judgePolicyControl, /JUDGE_POLICY_RUBRIC/, "policy editor should offer a complete rubric");
+  assert.match(judgePolicyControl, /Success looks like/, "outcome mode should define success");
+  assert.match(judgePolicyControl, /Failure looks like/, "outcome mode should define failure");
+  assert.match(judgePolicyControl, /Complete rubric/, "advanced mode should accept a complete rubric");
+  assert.match(judgePolicyControl, /7 is the minimum successful result/, "UI should preserve the downstream success boundary");
+  assert.match(judgePolicyControl, /not the exact Judge system prompt/, "scoring overview should disclose that it is not the exact prompt");
+
+  assert.match(app, /mountJudgePolicyControl/, "dashboard should mount the shared policy control");
+  assert.match(app, /judge_policy: judgePolicy/, "non-standard policies should travel in target config");
+  assert.match(judgePolicyControl, /if \(normalized\.mode === JUDGE_POLICY_STANDARD\) return null/, "standard mode should preserve legacy payloads");
+  assert.match(app, /hasValidJudgePolicy\(config\)/, "run paths should validate configured criteria");
+  assert.match(app, /baselineConfigCacheKey\(config\)/, "baseline cache should cover the complete run configuration");
+  assert.match(app, /stripSecretConfigKeys\(\{ \.\.\.config \}\)/, "baseline cache should exclude credentials");
+  assert.match(app, /state\.baseline\.configCacheKey !== configCacheKey/, "baseline cache should invalidate when run inputs change");
+  assert.match(css, /\.operator-judge-policy-editor\s*\{/, "policy editor should be styled");
+  assert.match(css, /\.judge-policy-mode-grid\s*\{/, "policy choices should use a responsive grid");
 });
 
 test("operator profile cards expose configure actions and selector shells", () => {
@@ -232,6 +262,7 @@ test("operator profile row and shared editor are styled", () => {
   const profileBlock = ruleBody(".operator-profile-block");
   const profileEditor = ruleBody(".operator-profile-editor");
   const profileEditorHidden = ruleBody(".operator-profile-editor[hidden]");
+  const profilePrompt = ruleBody(".profile-editor-system-prompt");
   const backingFields = ruleBody(".operator-backing-fields");
   const mobileProfileRow = selectorListRuleBody(".operator-profile-row", mediaBlock("max-width: 900px"));
 
@@ -248,6 +279,7 @@ test("operator profile row and shared editor are styled", () => {
   assert.ok(hasDeclaration(profileBlock, "border-radius", "var\\(--radius\\)"), "selector blocks should keep compact radius");
   assert.ok(hasDeclaration(profileEditor, "margin-top", "var\\(--sp-4\\)"), "shared editor should sit below the selector row");
   assert.ok(hasDeclaration(profileEditorHidden, "display", "none !important"), "hidden editor should not occupy layout space");
+  assert.ok(hasDeclaration(profilePrompt, "grid-column", "1 / -1"), "run prompt should span the configure editor");
   assert.ok(hasDeclaration(backingFields, "display", "none !important"), "backing fields should stay hidden");
   assert.ok(hasDeclaration(mobileProfileRow, "grid-template-columns", "1fr"), "profile row should stack on mobile");
 });

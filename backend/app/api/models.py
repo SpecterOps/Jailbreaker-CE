@@ -17,6 +17,7 @@ class RunSummary:
     highest_severity: str
     final_output: str = ""
     conversation: list[dict] | None = None
+    error: str = ""
 
 
 @dataclass(slots=True)

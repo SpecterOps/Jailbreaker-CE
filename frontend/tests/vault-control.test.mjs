@@ -644,6 +644,7 @@ test("dashboard local shared editor saves profile once and selects it for every 
     const provider = documentRef.querySelector("#profile-editor-provider");
     assert.equal(baseUrl.value, "https://api.openai.com/v1", "target editor starts from the hidden target default");
     provider.value = "openai";
+    documentRef.querySelector("#profile-editor-system-prompt").value = "Run-specific target prompt.";
 
     const localToggle = documentRef.querySelector("#profile-editor-local");
     localToggle.checked = true;
@@ -662,6 +663,7 @@ test("dashboard local shared editor saves profile once and selects it for every 
     assert.equal(body.provider, "local");
     assert.equal(body.base_url, "http://localhost:1234/v1");
     assert.equal(body.api_key, "lm-studio");
+    assert.equal(Object.hasOwn(body, "system_prompt"), false, "profiles should never receive run prompts");
     assert.equal(body.scope, "all");
     assert.equal(documentRef.querySelector("#target-profile").value, "local-target-profile");
     assert.equal(documentRef.querySelector("#attacker-profile").value, "local-target-profile");
@@ -674,17 +676,19 @@ test("dashboard local shared editor saves profile once and selects it for every 
         target_profile_id: "local-target-profile",
         api_base_url: "http://localhost:1234/v1",
         model: "gpt-4o-mini",
-        system_prompt: "You are helpful.",
+        system_prompt: "Run-specific target prompt.",
         unsafe_intent: "test intent",
         attacker_local: true,
         attacker_profile_id: "local-target-profile",
         attacker_api_base_url: "http://localhost:1234/v1",
         attacker_model: "gpt-4o-mini",
+        attacker_system_prompt: "You are a helpful assistant.",
         judge_mode: "custom",
         judge_local: true,
         judge_profile_id: "local-target-profile",
         judge_api_base_url: "http://localhost:1234/v1",
         judge_model: "gpt-4o-mini",
+        judge_system_prompt: "",
         cs_system_prompt: false,
       },
       "saving one profile should persist all three role profile ids",
@@ -729,8 +733,10 @@ test("dashboard can edit a selected saved profile", async () => {
     assert.equal(documentRef.querySelector("#profile-editor-title").textContent, "Edit Target LLM Profile");
     assert.equal(documentRef.querySelector("#profile-editor-name").value, "Shared Cloud");
     assert.equal(documentRef.querySelector("#profile-editor-model").value, "gpt-4o-mini");
+    assert.equal(documentRef.querySelector("#profile-editor-system-prompt").value, "You are a helpful assistant.");
     assert.equal(documentRef.querySelector("#profile-editor-api-key").value, "");
 
+    documentRef.querySelector("#profile-editor-system-prompt").value = "Run-specific target prompt.";
     documentRef.querySelector("#profile-editor-name").value = "Shared Edited";
     documentRef.querySelector("#profile-editor-save-btn").dispatchEvent({ type: "click" });
     await flushPromises();
@@ -740,7 +746,9 @@ test("dashboard can edit a selected saved profile", async () => {
     const body = JSON.parse(profilePost.options.body);
     assert.equal(body.profile_id, "shared-profile");
     assert.equal(body.name, "Shared Edited");
+    assert.equal(Object.hasOwn(body, "system_prompt"), false);
     assert.equal(body.api_key, "");
+    assert.equal(documentRef.querySelector("#system-prompt").value, "Run-specific target prompt.");
   } finally {
     restoreDashboardGlobals(previousGlobals);
   }
@@ -1086,7 +1094,9 @@ function seedDashboardElement(id, element) {
     "judge-api-base-url": "",
     "judge-model": "",
     "judge-api-key": "",
-    "system-prompt": "You are helpful.",
+    "system-prompt": "You are a helpful assistant.",
+    "attacker-system-prompt": "You are a helpful assistant.",
+    "judge-system-prompt": "",
     "unsafe-intent": "test intent",
     "custom-technique-mode": "single",
     "custom-max-rounds": "5",

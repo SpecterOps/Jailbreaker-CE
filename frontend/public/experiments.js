@@ -3,6 +3,10 @@
 // ---------------------------------------------------------------------------
 
 import { appendPresent, domElement as conversationElement, textNodeElement } from "./components/dom.js";
+import {
+  configuredJudgePolicy,
+  mountJudgePolicyControl,
+} from "./components/judge-policy-control.js";
 import { fillProfileSelect, hasSecretConfigKeys, selectedProfileFromList, stripSecretConfigKeys } from "./components/profile-config.js";
 import { mountSidebarNav } from "./components/sidebar-nav.js";
 import { mountVaultControl } from "./components/vault-control.js";
@@ -204,6 +208,8 @@ const el = {
   judgeApiKey: document.getElementById("exp-judge-api-key"),
   judgeBaseUrl: document.getElementById("exp-judge-base-url"),
   judgeModel: document.getElementById("exp-judge-model"),
+  judgePolicySummaryRoot: document.getElementById("exp-judge-policy-summary-root"),
+  judgePolicyEditorRoot: document.getElementById("exp-judge-policy-editor-root"),
   runBtn: document.getElementById("run-experiment-btn"),
   // (progress bars are now inline in History tab)
   // Results
@@ -239,6 +245,12 @@ const el = {
 };
 
 let vaultControl = null;
+const judgePolicyControl = mountJudgePolicyControl({
+  summaryRoot: el.judgePolicySummaryRoot,
+  editorRoot: el.judgePolicyEditorRoot,
+  idPrefix: "exp-judge-policy",
+  onChange: () => saveState(),
+});
 
 // ---------------------------------------------------------------------------
 // API helpers
@@ -755,6 +767,7 @@ function loadTargetConfig(savedTargetConfig = null) {
     }
     if (saved.judge_api_base_url) el.judgeBaseUrl.value = saved.judge_api_base_url;
     if (saved.judge_model) el.judgeModel.value = saved.judge_model;
+    judgePolicyControl.setPolicy(saved.judge_policy || {});
     if (saved.judge_local) {
       el.judgeLocal.checked = true;
       el.judgeLocal.dispatchEvent(new Event("change"));
@@ -766,6 +779,7 @@ function loadTargetConfig(savedTargetConfig = null) {
 }
 
 function getTargetConfig() {
+  const judgePolicy = configuredJudgePolicy(judgePolicyControl.getPolicy());
   return {
     target_profile_id: profileIdFromSelect(el.targetProfile),
     api_key: el.apiKey.value.trim(),
@@ -782,6 +796,7 @@ function getTargetConfig() {
     judge_api_key: el.judgeLocal.checked ? "lm-studio" : el.judgeApiKey.value.trim(),
     judge_api_base_url: el.judgeBaseUrl.value.trim(),
     judge_model: el.judgeModel.value.trim(),
+    ...(judgePolicy ? { judge_policy: judgePolicy } : {}),
   };
 }
 
@@ -842,6 +857,11 @@ el.form.addEventListener("submit", async (e) => {
   if (!datasetId) return alert("Please upload or select a dataset first.");
   if (techniqueKeys.length === 0) return alert("Select at least one technique.");
   if (!targetConfig.api_key && !targetConfig.target_profile_id) return alert("API key or saved profile is required.");
+  const judgePolicyMessage = judgePolicyControl.validationMessage(targetConfig.judge_policy);
+  if (judgePolicyMessage) {
+    judgePolicyControl.open();
+    return alert(judgePolicyMessage);
+  }
 
   el.runBtn.disabled = true;
   el.runBtn.textContent = "Starting...";
@@ -1429,7 +1449,9 @@ function renderSingleShot(entry) {
     chatBubble("target", "Response", entry.response || ""),
   );
 
-  if (judge.score && judge.score !== "?") {
+  if (judge.error) {
+    round.append(judgeBox("judge-error", "Judge Error", judge.error));
+  } else if (judge.score && judge.score !== "?") {
     const score = parseInt(judge.score, 10);
     round.append(judgeBox(score >= 7 ? "judge-success" : "judge-fail", `Judge: ${judge.score}/10`, judge.rationale || ""));
   }
@@ -1688,12 +1710,13 @@ function buildRejudgeOverlay(exp, completedCellCount, rejudgeMode, localChecked,
 }
 
 function buildRetryOverlay(exp, targetConfig, retryCount, errorCount, missingCount, cells, retryJudgeMode, retryJudgeLocalChecked) {
-  const modal = buildActionModal(`Retry ${retryCount} Error Cells`, "retry-cancel", "560px");
+  const modal = buildActionModal(`Retry ${retryCount} Error Cells`, "retry-cancel", "760px");
   const form = overlayForm("retry-form");
+  const judgeGroup = retryJudgeGroup(targetConfig, retryJudgeMode, retryJudgeLocalChecked);
   form.append(
     retryTargetGroup(targetConfig),
     retryAttackerGroup(targetConfig),
-    retryJudgeGroup(targetConfig, retryJudgeMode, retryJudgeLocalChecked),
+    judgeGroup.element,
     formActions(
       overlayButton("retry-cancel-btn", "Cancel", "button", "btn btn-secondary"),
       overlayButton("retry-confirm-btn", `Retry ${retryCount} Cells`, "submit", "btn btn-primary"),
@@ -1707,7 +1730,13 @@ function buildRetryOverlay(exp, targetConfig, retryCount, errorCount, missingCou
     ),
     form,
   );
-  return modal.overlay;
+  const retryJudgePolicyControl = mountJudgePolicyControl({
+    summaryRoot: judgeGroup.policySummaryRoot,
+    editorRoot: judgeGroup.policyEditorRoot,
+    idPrefix: "retry-judge-policy",
+  });
+  retryJudgePolicyControl.setPolicy(targetConfig.judge_policy || {});
+  return { overlay: modal.overlay, judgePolicyControl: retryJudgePolicyControl };
 }
 
 function retryTargetGroup(targetConfig) {
@@ -1748,11 +1777,19 @@ function retryJudgeGroup(targetConfig, retryJudgeMode, retryJudgeLocalChecked) {
       formField("Model", overlayInput("retry-judge-model", "text", targetConfig.judge_model || "")),
     ),
   );
+  const policySummaryRoot = document.createElement("div");
+  policySummaryRoot.id = "retry-judge-policy-summary-root";
+  policySummaryRoot.className = "judge-policy-summary-root";
+  const policyEditorRoot = document.createElement("div");
+  policyEditorRoot.id = "retry-judge-policy-editor-root";
+  policyEditorRoot.className = "judge-policy-editor-root";
   group.append(
     formRow(formField("Judge Source", judgeModeSelect("retry-judge-mode", retryJudgeMode))),
     customFields,
+    policySummaryRoot,
+    policyEditorRoot,
   );
-  return group;
+  return { element: group, policySummaryRoot, policyEditorRoot };
 }
 
 function buildActionModal(title, closeId, maxWidth) {
@@ -1997,7 +2034,17 @@ async function retryExperiment(experimentId) {
   const retryJudgeLocalChecked = tc.judge_local === true || tc.judge_local === "true" || tc.judge_api_key === "lm-studio";
 
   // Show review dialog
-  const overlay = buildRetryOverlay(exp, tc, retryCount, errorCount, missingCount, cells, retryJudgeMode, retryJudgeLocalChecked);
+  const retryModal = buildRetryOverlay(
+    exp,
+    tc,
+    retryCount,
+    errorCount,
+    missingCount,
+    cells,
+    retryJudgeMode,
+    retryJudgeLocalChecked,
+  );
+  const { overlay, judgePolicyControl: retryJudgePolicyControl } = retryModal;
   document.body.appendChild(overlay);
 
   const close = () => overlay.remove();
@@ -2030,6 +2077,13 @@ async function retryExperiment(experimentId) {
     const retryJudgeKey = retryJudgeIsLocal
       ? "lm-studio"
       : overlay.querySelector("#retry-judge-key").value.trim();
+    const retryJudgePolicyMessage = retryJudgePolicyControl.validationMessage();
+    if (retryJudgePolicyMessage) {
+      retryJudgePolicyControl.open();
+      alert(retryJudgePolicyMessage);
+      return;
+    }
+    const retryJudgePolicy = configuredJudgePolicy(retryJudgePolicyControl.getPolicy());
 
     const targetConfig = {
       api_key: apiKey,
@@ -2044,6 +2098,9 @@ async function retryExperiment(experimentId) {
       judge_api_key: retryJudgeKey,
       judge_api_base_url: overlay.querySelector("#retry-judge-base-url").value.trim(),
       judge_model: overlay.querySelector("#retry-judge-model").value.trim(),
+      ...(tc.attacker_system_prompt ? { attacker_system_prompt: tc.attacker_system_prompt } : {}),
+      ...(tc.judge_system_prompt ? { judge_system_prompt: tc.judge_system_prompt } : {}),
+      ...(retryJudgePolicy ? { judge_policy: retryJudgePolicy } : {}),
     };
 
     overlay.querySelector("#retry-confirm-btn").disabled = true;

@@ -104,6 +104,40 @@ venv.bak/
 .spyproject
 .ropeproject
 
+# AI assistants / local agent artifacts (not part of the application)
+AGENTS.md
+AGENTS.local.md
+CLAUDE.md
+CLAUDE.local.md
+GEMINI.md
+.aider*
+.cursorrules
+.mcp.json
+.agent/
+.agents/
+.ai/
+.claude/
+.codex/
+.continue/
+.cursor/
+.gemini/
+.llm/
+.roo/
+.windsurf/
+.github/copilot-instructions.md
+.github/instructions/
+agent-docs/
+ai-docs/
+ai-notes/
+ai-output/
+ai-scratch/
+AI_NOTES.md
+AI_PLAN.md
+HANDOFF.md
+IMPLEMENTATION_PLAN.md
+MODEL_NOTES.md
+REVIEW_NOTES.md
+
 # LaTeX build artifacts
 *.aux
 *.bbl

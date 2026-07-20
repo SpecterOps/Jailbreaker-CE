@@ -30,6 +30,18 @@ Read the full setup guide in [docs/getting-started.md](docs/getting-started.md) 
 - [Local development](docs/local-development.md)
 - [Release process](docs/release-process.md)
 
+## Run Prompts and Evaluation Criteria
+
+Target, Attacker, and Judge system prompts are independent run configuration and
+are not stored in reusable LLM vault profiles. Target prompts are used directly;
+Attacker and Judge prompts are prepended to Jailbreaker's required technique and
+scoring instructions.
+
+Judge evaluation criteria can use the existing standard behavior, explicit
+success and failure outcomes, or a complete custom rubric. Custom criteria keep
+the platform's `1-10` score contract, with `7` as the minimum successful score,
+and are shared by Dashboard runs, Experiment Design, and experiment retries.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for issue, pull request, and development guidance.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from app.attacklib.base import AttackBuildRequest, IterationRound, IterativeAttackResult
-from app.llm_client import ChatClient
+from app.llm_client import ChatClient, prepare_judge_messages
 
 from .pair import _extract_prompt, _messages_to_str, _parse_judge_score
 from .prompts import JUDGE_SCHEMA, JUDGE_SYSTEM, JUDGE_USER, MUTATION_SYSTEM, MUTATION_USER
@@ -79,6 +79,7 @@ def run_mutation_loop(
                 {"role": "system", "content": JUDGE_SYSTEM},
                 {"role": "user", "content": judge_user_content},
             ]
+            judge_messages = prepare_judge_messages(resolved_judge_client, judge_messages)
             judge_input_str = _messages_to_str(judge_messages)
             judge_output_str, _ = resolved_judge_client.chat_with_retry(
                 judge_messages, temperature=0.0, response_format=JUDGE_SCHEMA,
@@ -120,6 +121,7 @@ def run_mutation_loop(
             {"role": "system", "content": JUDGE_SYSTEM},
             {"role": "user", "content": judge_user_content},
         ]
+        judge_messages = prepare_judge_messages(resolved_judge_client, judge_messages)
         judge_input_str = _messages_to_str(judge_messages)
         judge_output_str, _ = resolved_judge_client.chat_with_retry(
             judge_messages, temperature=0.0, response_format=JUDGE_SCHEMA,

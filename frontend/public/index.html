@@ -99,6 +99,7 @@
                   </div>
                   <button type="button" class="btn btn-secondary btn-xs operator-profile-edit-btn" id="judge-profile-edit-btn" hidden>Edit</button>
                   <span class="operator-profile-meta" id="operator-judge-summary">No judge profile configured</span>
+                  <div class="judge-policy-summary-root" id="judge-policy-summary-root"></div>
                 </div>
 
                 <div class="operator-profile-block" data-profile-role="attacker">
@@ -125,6 +126,8 @@
                   <span class="operator-profile-meta" id="operator-attacker-summary">No attacker profile configured</span>
                 </div>
               </div>
+
+              <div class="judge-policy-editor-root" id="judge-policy-editor-root"></div>
 
               <section
                 class="operator-profile-editor"
@@ -154,6 +157,11 @@
                     <label for="profile-editor-base-url">Base URL</label>
                     <input type="url" id="profile-editor-base-url" placeholder="https://api.openai.com/v1" />
                   </div>
+                  <div class="form-field profile-editor-system-prompt">
+                    <label for="profile-editor-system-prompt">System Prompt*</label>
+                    <textarea id="profile-editor-system-prompt" rows="4"></textarea>
+                    <span class="field-hint">* This belongs to the run configuration and is not saved with the LLM profile. Target prompts are used directly; Attacker and Judge prompts are prepended to Jailbreaker's required instructions.</span>
+                  </div>
                   <div class="form-field profile-editor-key-field" id="profile-editor-key-field">
                     <label for="profile-editor-api-key">API Key</label>
                     <input type="password" id="profile-editor-api-key" placeholder="sk-..." />
@@ -175,18 +183,20 @@
                 <input type="password" id="api-key" />
                 <input type="url" id="api-base-url" value="https://api.openai.com/v1" />
                 <input type="text" id="model" value="" />
-                <input type="text" id="system-prompt" value="You are a helpful assistant." />
+                <textarea id="system-prompt">You are a helpful assistant.</textarea>
 
                 <input type="checkbox" id="attacker-local" />
                 <input type="password" id="attacker-api-key" />
                 <input type="url" id="attacker-api-base-url" />
                 <input type="text" id="attacker-model" />
+                <textarea id="attacker-system-prompt">You are a helpful assistant.</textarea>
 
                 <input type="hidden" id="judge-mode" value="target" />
                 <input type="checkbox" id="judge-local" />
                 <input type="password" id="judge-api-key" />
                 <input type="url" id="judge-api-base-url" />
                 <input type="text" id="judge-model" />
+                <textarea id="judge-system-prompt"></textarea>
               </div>
             </form>
           </section>
