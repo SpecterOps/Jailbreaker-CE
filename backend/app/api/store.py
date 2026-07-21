@@ -31,7 +31,13 @@ from app.evaluation import (
 )
 from app.execution import TechniqueRunner
 from app.execution.runner import _run_llm_judge
-from app.judge_policy import apply_judge_policy, build_judge_messages, judge_response_format
+from app.judge_policy import (
+    apply_judge_policy,
+    build_gold_answer_reference,
+    build_judge_messages,
+    judge_response_format,
+    normalize_gold_answer,
+)
 from app.llm_client import ChatClient
 from app.memory import ConversationMemory
 from app.memory.backends import PostgreSQLBackend
@@ -829,7 +835,7 @@ class EvaluationStore:
         *,
         name: str,
         description: str = "",
-        prompts: list[dict[str, str]],
+        prompts: list[dict[str, object]],
     ) -> dict:
         if not name:
             raise ValueError("`name` is required.")
@@ -842,11 +848,15 @@ class EvaluationStore:
             text = str(p.get("text", "")).strip()
             if not text:
                 raise ValueError(f"Prompt #{i} has empty `text`.")
-            tagged_prompts.append({
+            tagged_prompt = {
                 "id": f"p-{i:03d}",
                 "text": text,
                 "category": str(p.get("category", "")).strip() or "general",
-            })
+            }
+            gold_answer = normalize_gold_answer(p.get("gold_answer"))
+            if gold_answer:
+                tagged_prompt["gold_answer"] = gold_answer
+            tagged_prompts.append(tagged_prompt)
         dataset = {
             "dataset_id": dataset_id,
             "name": name,
@@ -1031,6 +1041,27 @@ class EvaluationStore:
                 for repeat_index in range(1, state.repeat_count + 1):
                     yield technique_key, prompt, repeat_index
 
+    def _experiment_cell_config(
+        self,
+        *,
+        full_config: dict[str, str],
+        prompt: dict,
+        max_rounds: int,
+    ) -> dict[str, str]:
+        """Build per-datapoint config without leaking one prompt's answer to another."""
+
+        cell_config = {
+            **full_config,
+            "unsafe_intent": prompt["text"],
+            "max_rounds": str(max_rounds),
+        }
+        cell_config.pop("seed_prompt", None)
+        cell_config.pop("gold_answer", None)
+        gold_answer = normalize_gold_answer(prompt.get("gold_answer"))
+        if gold_answer:
+            cell_config["gold_answer"] = gold_answer
+        return cell_config
+
     def _cell_identity(self, cell: dict) -> tuple[str, str, int]:
         return (
             str(cell.get("technique_key", "")),
@@ -1090,12 +1121,11 @@ class EvaluationStore:
                 state.current_technique = technique_key
                 state.current_prompt_id = prompt["id"]
                 state.current_repeat_index = repeat_index
-                cell_config = {
-                    **full_config,
-                    "unsafe_intent": prompt["text"],
-                    "max_rounds": str(state.max_rounds),
-                }
-                cell_config.pop("seed_prompt", None)
+                cell_config = self._experiment_cell_config(
+                    full_config=full_config,
+                    prompt=prompt,
+                    max_rounds=state.max_rounds,
+                )
                 log.info(
                     "[%s] cell %d/%d technique=%s prompt=%s repeat=%d/%d",
                     experiment_id,
@@ -1300,12 +1330,11 @@ class EvaluationStore:
                 state.current_technique = technique_key
                 state.current_prompt_id = prompt["id"]
                 state.current_repeat_index = repeat_index
-                cell_config = {
-                    **full_config,
-                    "unsafe_intent": prompt["text"],
-                    "max_rounds": str(state.max_rounds),
-                }
-                cell_config.pop("seed_prompt", None)
+                cell_config = self._experiment_cell_config(
+                    full_config=full_config,
+                    prompt=prompt,
+                    max_rounds=state.max_rounds,
+                )
                 log.info(
                     "[%s] retry %d/%d technique=%s prompt=%s repeat=%d",
                     experiment_id, i + 1, total_retry, technique_key, prompt["id"], repeat_index,
@@ -1450,14 +1479,20 @@ class EvaluationStore:
         try:
             target_client = self._build_chat_client(judge_config)
             attacker_client = self._build_attacker_client(judge_config)
+            base_judge_config = dict(judge_config)
+            base_judge_config.pop("gold_answer", None)
             judge_client = self._build_judge_client(
-                judge_config,
+                base_judge_config,
                 target_client=target_client,
                 attacker_client=attacker_client,
             )
             judge_model = getattr(judge_client, "model", "") or _display_judge_model(judge_config)
             judge_base = getattr(judge_client, "api_base_url", "") or str(judge_config.get("judge_api_base_url", ""))
             judge_mode = str(judge_config.get("judge_mode", "target") or "target")
+            prompt_lookup = {
+                str(prompt.get("id", "")): prompt
+                for prompt in state.dataset.get("prompts", [])
+            }
 
             for index, cell in enumerate(state.cell_results, start=1):
                 if cell.get("status") == "error":
@@ -1474,13 +1509,23 @@ class EvaluationStore:
                 if not target_text and not fabricator_text:
                     continue
 
+                prompt = prompt_lookup.get(str(cell.get("prompt_id", "")), {})
+                gold_answer = normalize_gold_answer(prompt.get("gold_answer"))
+                cell_judge_client = judge_client
+                if gold_answer:
+                    cell_judge_client = self._build_judge_client(
+                        {**base_judge_config, "gold_answer": gold_answer},
+                        target_client=target_client,
+                        attacker_client=attacker_client,
+                    )
+
                 target_score = 0
                 target_rationale = ""
                 target_judge_input = ""
                 target_judge_output = ""
                 if target_text:
                     target_score, target_rationale, target_judge_input, target_judge_output = _run_llm_judge(
-                        judge_client=judge_client,
+                        judge_client=cell_judge_client,
                         intent=str(cell.get("prompt_text", "")),
                         response_text=target_text,
                     )
@@ -1496,7 +1541,7 @@ class EvaluationStore:
                         fabricator_judge_input,
                         fabricator_judge_output,
                     ) = _run_llm_judge(
-                        judge_client=judge_client,
+                        judge_client=cell_judge_client,
                         intent=str(cell.get("prompt_text", "")),
                         response_text=fabricator_text,
                     )
@@ -2703,6 +2748,11 @@ class EvaluationStore:
         attacker_client: ChatClient | None,
     ) -> ChatClient:
         """Resolve the LLM used for judge scoring."""
+        configured_judge_prompt = str(config.get("judge_system_prompt", "") or "").strip()
+        gold_answer_reference = build_gold_answer_reference(config.get("gold_answer", ""))
+        judge_system_prompt = "\n\n".join(
+            part for part in (configured_judge_prompt, gold_answer_reference) if part
+        )
         raw_mode = str(config.get("judge_mode", "") or "").strip().lower()
         if raw_mode in {"", "legacy"}:
             base_client = attacker_client or target_client
@@ -2748,10 +2798,9 @@ class EvaluationStore:
                 model=judge_model,
                 temperature=0.0,
                 max_tokens=1024,
-                system_prompt=str(config.get("judge_system_prompt", "") or "").strip(),
+                system_prompt=judge_system_prompt,
             )
 
-        judge_system_prompt = str(config.get("judge_system_prompt", "") or "").strip()
         if raw_mode != "custom":
             base_client = _judge_client_with_system_prompt(base_client, judge_system_prompt)
 

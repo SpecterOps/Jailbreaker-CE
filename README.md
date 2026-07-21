@@ -42,6 +42,13 @@ success and failure outcomes, or a complete custom rubric. Custom criteria keep
 the platform's `1-10` score contract, with `7` as the minimum successful score,
 and are shared by Dashboard runs, Experiment Design, and experiment retries.
 
+Experiment datasets may optionally include a `gold_answer` on individual prompt
+objects. When present, Jailbreaker supplies it to the Judge as a trusted factual
+reference; prompts without one retain the standard Judge behavior. Gold answers
+are never added to Target or Attacker messages. Because `gold_answer` is treated
+as trusted Judge configuration, import experiment datasets only from sources you
+trust and do not place instructions or secrets in that field.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for issue, pull request, and development guidance.

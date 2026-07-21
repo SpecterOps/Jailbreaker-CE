@@ -6,6 +6,19 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 
+### Added
+
+- Optional per-datapoint `gold_answer` references for experiment Judges, including mixed datasets, retries, rejudging, and PostgreSQL persistence without exposing answers to Target or Attacker messages.
+
+### Changed
+
+- Ordered standard and configurable Judge outputs so evidence, component scores, and criteria decisions are generated before the final score.
+
+### Fixed
+
+- Rejected malformed or internally contradictory configurable Judge verdicts before they can affect experiment scores.
+- Preserved scalar `gold_answer` values such as `0` and `false` instead of treating them as missing.
+
 ## [0.2.0] - 2026-07-20
 
 ### Added

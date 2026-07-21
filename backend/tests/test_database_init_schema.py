@@ -33,3 +33,7 @@ def test_database_init_experiment_cells_support_repeats_and_metadata() -> None:
     ]
     for fragment in required_fragments:
         assert fragment in init_sql
+
+
+def test_database_init_dataset_prompts_support_optional_gold_answers() -> None:
+    assert "gold_answer TEXT" in _database_init_sql()

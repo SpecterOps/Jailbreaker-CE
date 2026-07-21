@@ -62,6 +62,38 @@ def test_expected_experiment_cells_include_repeat_index() -> None:
     ]
 
 
+def test_dataset_preserves_gold_answer_per_datapoint() -> None:
+    store = EvaluationStore(persistence=NoopRunPersistence())
+
+    dataset = store.create_dataset(
+        name="Mixed references",
+        prompts=[
+            {"text": "question with reference", "gold_answer": "  B  "},
+            {"text": "question without reference"},
+            {"text": "question with empty reference", "gold_answer": "   "},
+        ],
+    )
+
+    assert dataset["prompts"][0]["gold_answer"] == "B"
+    assert "gold_answer" not in dataset["prompts"][1]
+    assert "gold_answer" not in dataset["prompts"][2]
+
+
+def test_dataset_preserves_falsey_scalar_gold_answers() -> None:
+    store = EvaluationStore(persistence=NoopRunPersistence())
+
+    dataset = store.create_dataset(
+        name="Scalar references",
+        prompts=[
+            {"text": "zero reference", "gold_answer": 0},
+            {"text": "boolean reference", "gold_answer": False},
+        ],
+    )
+
+    assert dataset["prompts"][0]["gold_answer"] == "0"
+    assert dataset["prompts"][1]["gold_answer"] == "false"
+
+
 def test_experiment_report_includes_wilson_ci_and_score_stddev() -> None:
     store = EvaluationStore(persistence=NoopRunPersistence())
 
@@ -86,7 +118,12 @@ def test_experiment_dataset_prompt_does_not_replace_technique_template() -> None
     store = EvaluationStore(persistence=NoopRunPersistence())
     state = _experiment_state(repeat_count=1)
     state.technique_keys = ["aim"]
-    state.dataset["prompts"] = [{"id": "p1", "text": "dataset intent", "category": "cat-a"}]
+    state.dataset["prompts"] = [{
+        "id": "p1",
+        "text": "dataset intent",
+        "category": "cat-a",
+        "gold_answer": "expected answer",
+    }]
     state.total_cells = 1
     store._experiments[state.experiment_id] = state
     captured_configs = []
@@ -114,6 +151,7 @@ def test_experiment_dataset_prompt_does_not_replace_technique_template() -> None
     )
 
     assert captured_configs[0]["unsafe_intent"] == "dataset intent"
+    assert captured_configs[0]["gold_answer"] == "expected answer"
     assert "seed_prompt" not in captured_configs[0]
 
 
@@ -121,7 +159,12 @@ def test_experiment_retry_does_not_restore_dataset_prompt_as_seed() -> None:
     store = EvaluationStore(persistence=NoopRunPersistence())
     state = _experiment_state(repeat_count=1)
     state.technique_keys = ["aim"]
-    state.dataset["prompts"] = [{"id": "p1", "text": "dataset intent", "category": "cat-a"}]
+    state.dataset["prompts"] = [{
+        "id": "p1",
+        "text": "dataset intent",
+        "category": "cat-a",
+        "gold_answer": "expected answer",
+    }]
     state.total_cells = 1
     store._experiments[state.experiment_id] = state
     captured_configs = []
@@ -150,7 +193,26 @@ def test_experiment_retry_does_not_restore_dataset_prompt_as_seed() -> None:
     )
 
     assert captured_configs[0]["unsafe_intent"] == "dataset intent"
+    assert captured_configs[0]["gold_answer"] == "expected answer"
     assert "seed_prompt" not in captured_configs[0]
+
+
+def test_experiment_cell_config_omits_missing_or_empty_gold_answers() -> None:
+    store = EvaluationStore(persistence=NoopRunPersistence())
+
+    missing = store._experiment_cell_config(
+        full_config={"gold_answer": "stale answer"},
+        prompt={"id": "p1", "text": "no reference"},
+        max_rounds=5,
+    )
+    empty = store._experiment_cell_config(
+        full_config={},
+        prompt={"id": "p2", "text": "empty reference", "gold_answer": "   "},
+        max_rounds=5,
+    )
+
+    assert "gold_answer" not in missing
+    assert "gold_answer" not in empty
 
 
 def test_experiment_keeps_judge_failure_cells_retryable_with_conversation() -> None:
@@ -241,8 +303,15 @@ def test_rejudge_scores_saved_target_and_fabricator_outputs() -> None:
         }
     ]
     store._experiments[state.experiment_id] = state
+    state.dataset["prompts"][0]["gold_answer"] = "trusted answer"
     judge = RecordingJudgeClient([2, 8])
-    store._build_judge_client = lambda config, *, target_client, attacker_client: judge
+    judge_configs = []
+
+    def build_judge(config, *, target_client, attacker_client):
+        judge_configs.append(dict(config))
+        return judge
+
+    store._build_judge_client = build_judge
 
     store._run_experiment_rejudge(
         state.experiment_id,
@@ -262,3 +331,5 @@ def test_rejudge_scores_saved_target_and_fabricator_outputs() -> None:
     assert result["target_asr"] == 0
     assert result["fabricator_asr"] == 100
     assert result["pipeline_unsafe_asr"] == 100
+    assert "gold_answer" not in judge_configs[0]
+    assert judge_configs[1]["gold_answer"] == "trusted answer"

@@ -137,8 +137,9 @@ class _FakeQueryResult:
 
 
 class _ExperimentLoadConnection:
-    def __init__(self, experiment_rows: list[tuple]) -> None:
+    def __init__(self, experiment_rows: list[tuple], prompt_rows: list[tuple] | None = None) -> None:
         self.experiment_rows = experiment_rows
+        self.prompt_rows = list(prompt_rows or [])
 
     def __enter__(self):
         return self
@@ -152,7 +153,7 @@ class _ExperimentLoadConnection:
         if "FROM experiment_datasets" in query:
             return _FakeQueryResult([("ds-1", "Dataset", "", 0)])
         if "FROM experiment_dataset_prompts" in query:
-            return _FakeQueryResult([])
+            return _FakeQueryResult(self.prompt_rows)
         if "FROM experiment_cells" in query:
             return _FakeQueryResult([])
         raise AssertionError(f"unexpected query: {query}")
@@ -371,6 +372,43 @@ def test_postgresql_load_all_experiments_maps_error_field() -> None:
     loaded = persistence.load_all_experiments()
 
     assert loaded[0]["error"] == interrupted_error
+
+
+def test_postgresql_load_all_experiments_restores_optional_gold_answer() -> None:
+    created_at = datetime(2026, 6, 1, tzinfo=UTC)
+    connection = _ExperimentLoadConnection(
+        [
+            (
+                "exp-9",
+                "Gold answer experiment",
+                "",
+                "",
+                "ds-1",
+                ["dan_style_roleplay"],
+                {"model": "target-model"},
+                "live",
+                "completed",
+                2,
+                0,
+                None,
+                None,
+                created_at,
+                1,
+                5,
+                "",
+            )
+        ],
+        prompt_rows=[
+            ("p-001", "question with reference", "general", "B"),
+            ("p-002", "question without reference", "general", None),
+        ],
+    )
+    persistence = _FakePostgreSQLRunPersistence(connection)
+
+    prompts = persistence.load_all_experiments()[0]["dataset"]["prompts"]
+
+    assert prompts[0]["gold_answer"] == "B"
+    assert "gold_answer" not in prompts[1]
 
 
 def test_demo_run_is_persisted_with_conversation() -> None:

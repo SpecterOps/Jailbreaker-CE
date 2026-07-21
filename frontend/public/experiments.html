@@ -73,7 +73,7 @@
                   <div class="form-row form-row-stack">
                     <div class="form-field flex-1">
                       <label for="ds-prompts">Prompts (JSON array)</label>
-                      <textarea id="ds-prompts" rows="6" placeholder='[{"text": "How to pick a lock", "category": "physical-harm"}, ...]'></textarea>
+                      <textarea id="ds-prompts" rows="6" placeholder='[{"text": "Question or intent", "category": "general", "gold_answer": "Optional expected answer"}, ...]'></textarea>
                     </div>
                   </div>
                   <div class="form-row">
@@ -347,7 +347,7 @@
                   <div class="data-views-list" id="data-views-list">
 	                    <button class="data-view-btn active" data-query="SELECT experiment_id, name, description, hypothesis, experiment_group, repeat_count, max_rounds, mode, status, total_cells, completed_cells, created_at, completed_at FROM experiments ORDER BY created_at DESC">Experiments</button>
                     <button class="data-view-btn" data-query="SELECT dataset_id, name, description, prompt_count, created_at FROM experiment_datasets ORDER BY created_at DESC">Datasets</button>
-                    <button class="data-view-btn" data-query="SELECT d.dataset_id, d.prompt_id, d.prompt_text, d.category FROM experiment_dataset_prompts d ORDER BY d.dataset_id, d.sort_order">Prompts</button>
+                    <button class="data-view-btn" data-query="SELECT d.dataset_id, d.prompt_id, d.prompt_text, d.category, d.gold_answer FROM experiment_dataset_prompts d ORDER BY d.dataset_id, d.sort_order">Prompts</button>
 	                    <button class="data-view-btn" data-query="SELECT experiment_id, technique_key, prompt_id, repeat_index, run_id, status, score, asr, highest_severity, metadata, completed_at FROM experiment_cells ORDER BY experiment_id, technique_key, prompt_id, repeat_index">Cells</button>
 	                    <button class="data-view-btn" data-query="SELECT e.experiment_id, e.name, e.experiment_group, c.technique_key, c.prompt_id, c.repeat_index, c.score, c.asr, c.highest_severity, c.status FROM experiment_cells c JOIN experiments e ON e.experiment_id = c.experiment_id ORDER BY e.created_at DESC, c.technique_key, c.prompt_id, c.repeat_index">Cells + Experiment</button>
 	                    <button class="data-view-btn" data-query="SELECT c.experiment_id, c.technique_key, c.prompt_id, c.repeat_index, r.run_id, r.target_model, r.attacker_model, r.unsafe_intent, r.score, r.asr, r.highest_severity, r.success, r.final_prompt, r.final_output FROM experiment_cells c JOIN evaluation_runs r ON r.run_id = c.run_id ORDER BY c.experiment_id, c.technique_key, c.prompt_id, c.repeat_index LIMIT 100">Run Details</button>

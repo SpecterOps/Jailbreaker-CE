@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS experiment_dataset_prompts (
     prompt_id TEXT NOT NULL,
     prompt_text TEXT NOT NULL,
     category TEXT NOT NULL DEFAULT 'general',
+    gold_answer TEXT,
     sort_order INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (dataset_id, prompt_id)
 );

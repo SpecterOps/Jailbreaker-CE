@@ -690,11 +690,13 @@ class PostgreSQLRunPersistence(RunPersistence):
                 prompt_id TEXT NOT NULL,
                 prompt_text TEXT NOT NULL,
                 category TEXT NOT NULL DEFAULT 'general',
+                gold_answer TEXT,
                 sort_order INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (dataset_id, prompt_id)
             )
             """
         )
+        conn.execute("ALTER TABLE experiment_dataset_prompts ADD COLUMN IF NOT EXISTS gold_answer TEXT")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS experiments (
@@ -785,8 +787,10 @@ class PostgreSQLRunPersistence(RunPersistence):
             for i, prompt in enumerate(dataset.get("prompts", [])):
                 conn.execute(
                     """
-                    INSERT INTO experiment_dataset_prompts (dataset_id, prompt_id, prompt_text, category, sort_order)
-                    VALUES (%s, %s, %s, %s, %s)
+                    INSERT INTO experiment_dataset_prompts (
+                        dataset_id, prompt_id, prompt_text, category, gold_answer, sort_order
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (dataset_id, prompt_id) DO NOTHING
                     """,
                     (
@@ -794,6 +798,7 @@ class PostgreSQLRunPersistence(RunPersistence):
                         prompt["id"],
                         prompt["text"],
                         prompt.get("category", "general"),
+                        prompt.get("gold_answer") if prompt.get("gold_answer") not in (None, "") else None,
                         i,
                     ),
                 )
@@ -988,7 +993,7 @@ class PostgreSQLRunPersistence(RunPersistence):
                 dataset = {}
                 if ds_row:
                     prompt_rows = conn.execute(
-                        "SELECT prompt_id, prompt_text, category FROM experiment_dataset_prompts WHERE dataset_id = %s ORDER BY sort_order",
+                        "SELECT prompt_id, prompt_text, category, gold_answer FROM experiment_dataset_prompts WHERE dataset_id = %s ORDER BY sort_order",
                         (dataset_id,),
                     ).fetchall()
                     dataset = {
@@ -997,7 +1002,12 @@ class PostgreSQLRunPersistence(RunPersistence):
                         "description": ds_row[2],
                         "prompt_count": ds_row[3],
                         "prompts": [
-                            {"id": pr[0], "text": pr[1], "category": pr[2]}
+                            {
+                                "id": pr[0],
+                                "text": pr[1],
+                                "category": pr[2],
+                                **({"gold_answer": pr[3]} if pr[3] else {}),
+                            }
                             for pr in prompt_rows
                         ],
                     }
