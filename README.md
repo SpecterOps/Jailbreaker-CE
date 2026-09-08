@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/Jailbreaker_Vertical_AllWhite.png" alt="Jailbreaker" width="300">
+</p>
+
 # Jailbreaker
 
 [![Sponsored by SpecterOps](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fspecterops%2F.github%2Fmain%2Fconfig%2Fshield.json)](https://github.com/specterops)
