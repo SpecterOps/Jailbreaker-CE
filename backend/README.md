@@ -79,8 +79,10 @@ options. Developer tools are excluded from the application image.
 
 ## Adding Built-In Techniques
 
-New reviewed built-ins should use the source-controlled package contract in
-[`docs/technique-authoring.md`](../docs/technique-authoring.md). In brief, a
+New reviewed built-ins should follow
+[Authoring Complex Technique Architectures](../docs/technique-authoring.md).
+The guide includes a runnable workflow example, Python executor guidance,
+validation steps, and current application limits. In brief, a
 strict manifest becomes an immutable catalog registration; the router pins a
 version/implementation and the runtime supplies controlled services to a
 bounded workflow or Python executor. Normalized evidence then feeds generic

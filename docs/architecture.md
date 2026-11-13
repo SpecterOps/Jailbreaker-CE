@@ -97,7 +97,7 @@ implementations. The static registry, loops, renderer, and custom-technique
 builder remain for coexistence and rollback. Authenticated workspace package
 upload and general third-party package installation are not implemented.
 
-See the [technique authoring guide](technique-authoring.md)
+See [Authoring Complex Technique Architectures](technique-authoring.md)
 (`docs/technique-authoring.md`) for package fields, enums, runtime services,
 workflow/Python protocols, validation, parity, promotion, and rollback.
 

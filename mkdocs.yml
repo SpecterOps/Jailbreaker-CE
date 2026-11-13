@@ -7,6 +7,7 @@ nav:
   - Getting Started: getting-started.md
   - Configuration: configuration.md
   - Architecture: architecture.md
+  - Authoring Complex Technique Architectures: technique-authoring.md
   - Security Model: security-model.md
   - Local Development: local-development.md
   - Release Process: release-process.md
