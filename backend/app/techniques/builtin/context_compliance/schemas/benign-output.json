@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "benign": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "benign"
+  ],
+  "additionalProperties": false
+}

@@ -38,7 +38,10 @@ def stable_json_dumps(payload: dict[str, Any]) -> str:
 
 
 def build_architecture_artifact(
-    *, technique: str, rounds: list[dict[str, Any]]
+    *,
+    technique: str,
+    rounds: list[dict[str, Any]],
+    schema_version: str = ARCHITECTURE_SCHEMA_VERSION,
 ) -> dict[str, Any]:
     architecture = _empty_architecture()
     parseable_rounds = 0
@@ -57,7 +60,7 @@ def build_architecture_artifact(
     mapped_sections = _mapped_sections(architecture)
 
     return {
-        "schema_version": ARCHITECTURE_SCHEMA_VERSION,
+        "schema_version": schema_version,
         "technique": technique,
         "status": _status_for(
             mapped_sections, parseable_rounds, raw_response_rounds, len(rounds)
@@ -449,12 +452,23 @@ def _status_for(
 
 def _canonical_rounds(rounds: list[dict[str, Any]]) -> list[dict[str, Any]]:
     copied = deepcopy(rounds)
-    return sorted(
-        copied,
-        key=lambda round_item: (
-            _ROUND_PHASE_ORDER.get(str(round_item.get("phase")), len(_ROUND_PHASE_ORDER)),
-            stable_json_dumps(round_item),
+    return sorted(copied, key=_canonical_round_key)
+
+
+def _canonical_round_key(round_item: dict[str, Any]) -> tuple[int, int, str]:
+    round_number = round_item.get("round_number")
+    if (
+        isinstance(round_number, int)
+        and not isinstance(round_number, bool)
+        and round_number > 0
+    ):
+        return (0, round_number, stable_json_dumps(round_item))
+    return (
+        1,
+        _ROUND_PHASE_ORDER.get(
+            str(round_item.get("phase")), len(_ROUND_PHASE_ORDER)
         ),
+        stable_json_dumps(round_item),
     )
 
 

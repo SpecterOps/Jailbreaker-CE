@@ -1,0 +1,11 @@
+version: 1
+conversation_format: tree
+histories:
+  attacker: attacker_history
+  audit: audit_history
+sections:
+  - depths
+  - branches
+  - candidates
+  - selected_candidate
+  - target_judge

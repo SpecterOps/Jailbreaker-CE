@@ -2706,6 +2706,33 @@ body.show-raw-input .chat-raw-input { display: block; }
   color: var(--text-primary);
 }
 
+.json-artifact-tree {
+  margin-bottom: var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.json-artifact-node {
+  margin-left: var(--sp-3);
+  padding-block: 2px;
+  overflow-wrap: anywhere;
+}
+
+.json-artifact-tree.json-artifact-node {
+  margin-left: 0;
+}
+
+.json-artifact-key {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.json-artifact-scalar {
+  margin-left: var(--sp-2);
+  color: var(--text-primary);
+}
+
 /* Poisoned badge */
 .chat-poisoned-badge {
   display: inline-flex;

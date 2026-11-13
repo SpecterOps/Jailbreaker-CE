@@ -46,9 +46,9 @@ __all__ = ["demo_architecture_enumeration_output", "extract_conversation"]
 #       }
 # ---------------------------------------------------------------------------
 
-# Techniques that use population-based search (multiple candidates per round).
-
-_POPULATION_TECHNIQUES = {"autodan", "mutation"}
+# Legacy trace adapters are intentionally isolated here. Modular packages use
+# their manifest-selected projection captured by the application bridge.
+_LEGACY_COMPATIBILITY_POPULATION_TECHNIQUES = {"autodan", "mutation"}
 
 
 def extract_conversation(result) -> list[dict]:
@@ -57,29 +57,33 @@ def extract_conversation(result) -> list[dict]:
     Returns a list of entries with one of three `kind` values:
     "round", "generation", or "single_shot". See the schema docstring above.
     """
-    iterative_rounds = [
-        t for t in result.traces if t.event_type == "iterative_round"
-    ]
+    return _LegacyCompatibilityConversationProjector().project(result)
 
-    if not iterative_rounds:
-        return _extract_single_shot(result)
 
-    if result.technique_key in _POPULATION_TECHNIQUES:
-        return _extract_generations(iterative_rounds)
+class _LegacyCompatibilityConversationProjector:
+    """Preserve legacy trace serialization behind one labeled boundary."""
 
-    entries = _extract_rounds(iterative_rounds)
-    if (
-        result.technique_key == "agent_architecture_enumeration"
-        and result.response.final_output
-    ):
-        entries.append(
-            {
-                "kind": "artifact",
-                "label": "Canonical architecture artifact",
-                "response": result.response.final_output,
-            }
-        )
-    return entries
+    def project(self, result) -> list[dict]:
+        iterative_rounds = [
+            trace for trace in result.traces if trace.event_type == "iterative_round"
+        ]
+        if not iterative_rounds:
+            return _extract_single_shot(result)
+        if result.technique_key in _LEGACY_COMPATIBILITY_POPULATION_TECHNIQUES:
+            return _extract_generations(iterative_rounds)
+        entries = _extract_rounds(iterative_rounds)
+        if (
+            result.technique_key == "agent_architecture_enumeration"
+            and result.response.final_output
+        ):
+            entries.append(
+                {
+                    "kind": "artifact",
+                    "label": "Canonical architecture artifact",
+                    "response": result.response.final_output,
+                }
+            )
+        return entries
 
 
 def demo_architecture_enumeration_output() -> str:
@@ -227,7 +231,7 @@ def _extract_rounds(iterative_rounds: list) -> list[dict]:
                 "output": attrs.get("judge_output", ""),
                 "score": attrs.get("judge_score", "?"),
                 "rationale": rationale,
-            },
+            }
         })
     return entries
 

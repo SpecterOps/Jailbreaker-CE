@@ -1,0 +1,6 @@
+version: 1
+conversation_format: generation
+sections:
+  - prompt
+  - target_response
+  - target_judge

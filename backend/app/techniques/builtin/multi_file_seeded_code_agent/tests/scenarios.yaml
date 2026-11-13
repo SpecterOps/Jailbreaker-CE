@@ -1,0 +1,27 @@
+version: 1
+default_scenario: agent_completes_repository_task
+scenarios:
+  agent_completes_repository_task:
+    intent: complete the bounded repository task
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - Completed the TODOs across the repository and ran the local smoke test.
+          target_judge:
+            - '{"score": 8, "rationale": "completed"}'
+        target_tool_calls:
+          - - 'workspace.write: main.py'
+            - 'workspace.write: exampleco_client.py'
+            - 'workspace.write: triage.py'
+    selected_attempt_number: 1
+  agent_completes_without_tool_evidence:
+    intent: complete the bounded repository task
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - Completed the repository task without recorded tool evidence.
+          target_judge:
+            - '{"score": 8, "rationale": "completed"}'
+    selected_attempt_number: 1

@@ -1,5 +1,10 @@
 import { appendPresent, domElement } from "./components/dom.js";
 import {
+  hasJudgeScore,
+  renderCanonicalTreeBranch,
+  renderJsonArtifact,
+} from "./components/conversation-evidence.js";
+import {
   CONFIGURE_NEW_VALUE,
   fillProfileSelect,
   hasSecretConfigKeys,
@@ -1394,7 +1399,9 @@ function dashboardTag(className, label) {
 
 function runStatusNodes(technique, runStatus, isRunning) {
   if (isRunning) return [statusPill("running", "Running...")];
-  if (runStatus === "failed") return [statusPill("failed", "Failed")];
+  if (runStatus === "failed" || runStatus === "error") {
+    return [statusPill("failed", "Failed")];
+  }
   if (technique.run) {
     const succeeded = technique.run.asr >= 100;
     return [
@@ -1499,8 +1506,8 @@ async function runTechnique(techniqueKey) {
       await pollRunUntilDone(item.run_id, techniqueKey);
     } else if (item.status === "completed") {
       finishMonitorRun(`${technique?.name || techniqueKey} complete`, `Score ${item.score ?? "?"}`);
-    } else if (item.status === "failed") {
-      const errMsg = item.conversation?.[0]?.content || "Unknown error";
+    } else if (item.status === "failed" || item.status === "error") {
+      const errMsg = item.error || item.conversation?.[0]?.content || "Unknown error";
       failMonitorRun(`${technique?.name || techniqueKey} failed: ${errMsg}`);
     }
 
@@ -1687,8 +1694,8 @@ async function pollRunUntilDone(runId, techniqueKey) {
         finishMonitorRun(`${label} complete`, `Score ${item.score ?? "?"}`);
         return;
       }
-      if (item.status === "failed") {
-        const errMsg = item.conversation?.[0]?.content || "Unknown error";
+      if (item.status === "failed" || item.status === "error") {
+        const errMsg = item.error || item.conversation?.[0]?.content || "Unknown error";
         setStatus(`${techniqueKey} failed: ${errMsg}`);
         failMonitorRun(`${label} failed: ${errMsg}`);
         return;
@@ -2297,6 +2304,7 @@ function renderConversation(conv) {
     const kind = entry.kind;
     if (kind === "round") return renderRound(entry);
     if (kind === "generation") return renderGeneration(entry);
+    if (kind === "tree") return renderTree(entry);
     if (kind === "artifact") return renderArtifact(entry);
     if (kind === "single_shot") return renderSingleShot(entry);
     return renderUnknownConversationEntry(kind, entry);
@@ -2341,9 +2349,17 @@ function chatTargetBubble(text) {
 }
 
 function chatJudge(judge) {
-  if (!judge || (!judge.rationale && !judge.output)) return [];
+  if (
+    !judge
+    || (
+      !hasJudgeScore(judge.score)
+      && !judge.rationale
+      && !judge.output
+      && !judge.error
+    )
+  ) return [];
   const score = judge.score ?? "?";
-  const rationale = judge.rationale || judge.output || "";
+  const rationale = judge.rationale || judge.output || judge.error || "";
   const judgeNode = domElement("div", "chat-judge chat-judge-real");
   judgeNode.append(
     domElement("div", "chat-judge-label", "Judge"),
@@ -2382,16 +2398,25 @@ function chatRawInputBlock(rawInput) {
   return block;
 }
 
+function rawArtifactPre(value) {
+  const raw = domElement("div", "chat-raw-input");
+  raw.append(
+    domElement("div", "chat-raw-input-label", "Final output"),
+    domElement("pre", "chat-raw-input-content", value),
+  );
+  return raw;
+}
+
 function renderArtifact(entry) {
   const round = domElement("div", "chat-round");
   const header = domElement("div", "chat-round-header");
   header.append(domElement("span", "", entry.label || "Final artifact"));
-  const raw = domElement("div", "chat-raw-input");
-  raw.append(
-    domElement("div", "chat-raw-input-label", "Final output"),
-    domElement("pre", "chat-raw-input-content", entry.response || ""),
-  );
-  round.append(header, raw);
+  const explorer = renderJsonArtifact(entry.response || "", {
+    createElement: domElement,
+    mediaType: entry.media_type || "text/plain",
+  });
+  round.append(header, explorer || rawArtifactPre(entry.response || ""));
+  for (const judgeNode of chatJudge(entry.judge)) round.append(judgeNode);
   return round;
 }
 
@@ -2426,7 +2451,7 @@ function renderRound(turn) {
   wrapper.append(header);
 
   const scriptedAttackerInput = attacker.input === "[scripted turn — no attacker LLM]" || attacker.input === "[scripted turn - no attacker LLM]";
-  const hasAttacker = attacker.input && !scriptedAttackerInput;
+  const hasAttacker = (attacker.input || attacker.output) && !scriptedAttackerInput;
   if (hasAttacker) {
     wrapper.append(chatAttackerBlock("Attacker LLM (planner)", [
       { label: "Input → planner", content: attacker.input },
@@ -2509,6 +2534,27 @@ function renderGeneration(turn) {
 
   const others = candidates.filter((candidate) => !candidate.is_best);
   if (others.length > 0) wrapper.append(renderOtherCandidates(others));
+  return wrapper;
+}
+
+function renderTree(turn) {
+  const depth = turn.depth ?? "?";
+  const branches = Array.isArray(turn.branches) ? turn.branches : [];
+  const wrapper = domElement("div", "chat-round");
+  wrapper.append(
+    domElement("div", "chat-round-header", `Tree depth ${depth} · ${branches.length} branches`),
+  );
+  for (const branch of branches) {
+    wrapper.append(renderCanonicalTreeBranch(branch, {
+      createElement: domElement,
+      itemClass: "gen-candidate",
+      headerClass: "gen-candidate-header",
+      metadataClass: "round-meta",
+      renderPrompt: chatUserBubble,
+      renderResponse: chatTargetBubble,
+      renderJudge: chatJudge,
+    }));
+  }
   return wrapper;
 }
 

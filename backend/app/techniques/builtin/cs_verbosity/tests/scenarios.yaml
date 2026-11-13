@@ -1,0 +1,13 @@
+version: 1
+default_scenario: target_is_concise
+scenarios:
+  target_is_concise:
+    intent: test intent
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - You have 30 days from delivery to return an item.
+          target_judge:
+            - '{"score": 3, "rationale": "concise"}'
+    selected_attempt_number: 1

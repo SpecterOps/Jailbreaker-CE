@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.11"
 
 [[package]]
@@ -486,6 +486,8 @@ version = "0.2.0"
 source = { virtual = "." }
 dependencies = [
     { name = "cryptography" },
+    { name = "jsonschema" },
+    { name = "pyyaml" },
 ]
 
 [package.optional-dependencies]
@@ -511,9 +513,11 @@ requires-dist = [
     { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.7" },
     { name = "bandit", marker = "extra == 'security'", specifier = ">=1.7" },
     { name = "cryptography", specifier = ">=42" },
+    { name = "jsonschema", specifier = ">=4.23" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
     { name = "ruff", marker = "extra == 'security'", specifier = ">=0.6" },
     { name = "semgrep", marker = "extra == 'security'", specifier = ">=1.80" },

@@ -1,0 +1,9 @@
+version: 1
+conversation_format: rounds
+histories:
+  target: target_history
+  audit: audit_history
+sections:
+  - rounds
+  - target_judge
+  - transform_provenance

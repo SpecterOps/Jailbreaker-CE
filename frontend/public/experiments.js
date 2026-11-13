@@ -4,6 +4,11 @@
 
 import { appendPresent, domElement as conversationElement, textNodeElement } from "./components/dom.js";
 import {
+  hasJudgeScore,
+  renderCanonicalTreeBranch,
+  renderJsonArtifact,
+} from "./components/conversation-evidence.js";
+import {
   configuredJudgePolicy,
   mountJudgePolicyControl,
 } from "./components/judge-policy-control.js";
@@ -1315,23 +1320,113 @@ function scoreColor(score) {
 // Conversation modal
 // ---------------------------------------------------------------------------
 
+let attemptHistoryRequestToken = 0;
+
 function showConversation(cell) {
   const repeat = cell.repeat_index ? ` / run ${cell.repeat_index}` : "";
   el.modalTitle.textContent = `${displayTechniqueKey(cell.technique_key)} — ${cell.prompt_id}${repeat}`;
+  const attemptSection = conversationElement("section", "conversation-attempt-history");
+  attemptSection.replaceChildren(
+    textNodeElement("div", "entry-header", "Attempt History"),
+    textNodeElement("p", "text-muted", "Loading attempt history…"),
+  );
   el.modalBody.replaceChildren(
+    attemptSection,
     ...renderRejudgeResults(cell),
     ...renderConversation(cell.conversation || []),
   );
   el.modalOverlay.style.display = "";
+
+  const requestToken = ++attemptHistoryRequestToken;
+  const experimentId = state.currentExperiment?.experiment_id || state.currentExperimentId;
+  const cellId = cell.cell_id;
+  if (!experimentId || !cellId) {
+    attemptSection.replaceChildren(
+      textNodeElement("div", "entry-header", "Attempt History"),
+      textNodeElement("p", "text-muted", "Attempt history is unavailable for this legacy cell."),
+    );
+    return;
+  }
+  loadAttemptHistory(experimentId, cellId, requestToken, attemptSection);
 }
 
 el.modalClose.addEventListener("click", () => {
+  attemptHistoryRequestToken += 1;
   el.modalOverlay.style.display = "none";
 });
 
 el.modalOverlay.addEventListener("click", (e) => {
-  if (e.target === el.modalOverlay) el.modalOverlay.style.display = "none";
+  if (e.target === el.modalOverlay) {
+    attemptHistoryRequestToken += 1;
+    el.modalOverlay.style.display = "none";
+  }
 });
+
+async function loadAttemptHistory(experimentId, cellId, requestToken, section) {
+  try {
+    const history = await fetchJson(
+      `/api/experiments/${encodeURIComponent(experimentId)}/cells/${encodeURIComponent(cellId)}/attempts`,
+    );
+    if (requestToken !== attemptHistoryRequestToken) return;
+    section.replaceChildren(...renderAttemptHistory(history));
+  } catch (err) {
+    if (requestToken !== attemptHistoryRequestToken) return;
+    section.replaceChildren(
+      textNodeElement("div", "entry-header", "Attempt History"),
+      textNodeElement("p", "text-muted", `Attempt history is unavailable: ${err.message}`),
+    );
+  }
+}
+
+function renderAttemptHistory(history) {
+  const attempts = Array.isArray(history?.items) ? history.items : [];
+  const attemptCount = history?.attempt_count ?? attempts.length;
+  const content = [
+    textNodeElement("div", "entry-header", "Attempt History"),
+    textNodeElement(
+      "p",
+      "text-muted",
+      `Attempt count: ${attemptCount} · Selected attempt ID: ${history?.selected_attempt_id ?? "none"}`,
+    ),
+  ];
+  if (!attempts.length) {
+    content.push(textNodeElement("p", "text-muted", "No immutable attempt records are available."));
+    return content;
+  }
+
+  for (const attempt of attempts) {
+    const entry = conversationElement("div", "conversation-entry conversation-entry--judge");
+    const labels = [];
+    if (attempt.is_selected) labels.push("selected");
+    if (attempt.is_latest) labels.push("latest");
+    if (attempt.is_active) labels.push("active");
+    if (attempt.late_completion) labels.push("late completion");
+    entry.append(
+      textNodeElement(
+        "div",
+        "entry-header",
+        `Attempt ${attempt.attempt_number ?? "?"}${labels.length ? ` · ${labels.join(" · ")}` : ""}`,
+      ),
+      textNodeElement(
+        "p",
+        "",
+        `Kind: ${attempt.retry_kind ?? "unknown"} · Status: ${attempt.execution_status ?? "unknown"} · Disposition: ${attempt.result_disposition ?? "unknown"} · Score: ${attempt.score ?? "n/a"}`,
+      ),
+      textNodeElement(
+        "p",
+        "text-muted",
+        `Failure: ${attempt.failure_category ?? "none"} · Run ID: ${attempt.run_id ?? "none"}`,
+      ),
+      textNodeElement(
+        "p",
+        "text-muted",
+        `Created: ${attempt.created_at ?? "n/a"} · Started: ${attempt.started_at ?? "n/a"} · Completed: ${attempt.completed_at ?? "n/a"}`,
+      ),
+    );
+    content.push(entry);
+  }
+  return content;
+}
 
 el.toggleAttacker.addEventListener("change", (e) => {
   document.body.classList.toggle("show-attacker", e.target.checked);
@@ -1346,8 +1441,10 @@ function renderConversation(conv) {
   return conv.map((entry) => {
     if (entry.kind === "round") return renderRound(entry);
     if (entry.kind === "generation") return renderGeneration(entry);
+    if (entry.kind === "tree") return renderTree(entry);
     if (entry.kind === "artifact") return renderArtifact(entry);
-    return renderSingleShot(entry);
+    if (entry.kind === "single_shot") return renderSingleShot(entry);
+    return renderUnknownConversationEntry(entry.kind, entry);
   });
 }
 
@@ -1403,7 +1500,7 @@ function renderRound(entry) {
     chatBubble("target", "Target (Real Response)", target.response || ""),
   );
 
-  if (judge.score && judge.score !== "?") {
+  if (hasJudgeScore(judge.score)) {
     round.append(judgeBox(scoreClass, `Judge: ${judge.score}/10`, judge.rationale || ""));
   }
 
@@ -1430,7 +1527,7 @@ function renderGeneration(entry) {
       chatBubble("user", "Best Prompt", best.prompt),
       chatBubble("target", "Response", best.response),
     );
-    if (best.judge_score) {
+    if (hasJudgeScore(best.judge_score)) {
       const score = parseInt(best.judge_score, 10);
       round.append(judgeBox(score >= 7 ? "judge-success" : "judge-fail", `Judge: ${best.judge_score}/10`, best.judge_rationale || ""));
     }
@@ -1451,7 +1548,7 @@ function renderSingleShot(entry) {
 
   if (judge.error) {
     round.append(judgeBox("judge-error", "Judge Error", judge.error));
-  } else if (judge.score && judge.score !== "?") {
+  } else if (hasJudgeScore(judge.score)) {
     const score = parseInt(judge.score, 10);
     round.append(judgeBox(score >= 7 ? "judge-success" : "judge-fail", `Judge: ${judge.score}/10`, judge.rationale || ""));
   }
@@ -1459,12 +1556,67 @@ function renderSingleShot(entry) {
   return round;
 }
 
-function renderArtifact(entry) {
+function renderTree(entry) {
+  const branches = Array.isArray(entry.branches) ? entry.branches : [];
+  const round = conversationElement("div", "conv-round");
+  round.append(textNodeElement(
+    "div",
+    "conv-round-header",
+    `Tree depth ${entry.depth ?? ""} — ${branches.length} branches`,
+  ));
+  for (const branch of branches) {
+    round.append(renderCanonicalTreeBranch(branch, {
+      createElement: conversationElement,
+      itemClass: "gen-candidate",
+      headerClass: "gen-candidate-header",
+      metadataClass: "round-meta",
+      renderPrompt: (value) => chatBubble("user", "Prompt", value),
+      renderResponse: (value) => chatBubble("target", "Response", value),
+      renderJudge: (judge) => {
+        if (judge.error) {
+          return judgeBox("judge-error", "Judge Error", judge.error);
+        }
+        const score = Number(judge.score);
+        return judgeBox(
+          score >= 7 ? "judge-success" : "judge-fail",
+          `Judge: ${judge.score}/10`,
+          judge.rationale || judge.output || "",
+        );
+      },
+    }));
+  }
+  return round;
+}
+
+function renderUnknownConversationEntry(kind, entry) {
   const round = conversationElement("div", "conv-round");
   round.append(
-    textNodeElement("div", "conv-round-header", entry.label || "Final artifact"),
-    chatBubble("raw", "Final Output", entry.response || ""),
+    textNodeElement("div", "conv-round-header", `Unknown entry kind: ${kind || "(missing)"}`),
+    textNodeElement("pre", "", JSON.stringify(entry, null, 2)),
   );
+  return round;
+}
+
+function renderArtifact(entry) {
+  const round = conversationElement("div", "conv-round");
+  const header = textNodeElement("div", "conv-round-header", entry.label || "Final artifact");
+  const explorer = renderJsonArtifact(entry.response || "", {
+    createElement: conversationElement,
+    mediaType: entry.media_type || "text/plain",
+  });
+  round.append(header, explorer || chatBubble("raw", "Final Output", entry.response || ""));
+
+  const judge = entry.judge || {};
+  if (judge.error) {
+    round.append(judgeBox("judge-error", "Judge Error", judge.error));
+  } else if (hasJudgeScore(judge.score)) {
+    const score = Number(judge.score);
+    round.append(judgeBox(
+      score >= 7 ? "judge-success" : "judge-fail",
+      `Judge: ${judge.score}/10`,
+      judge.rationale || judge.output || "",
+    ));
+  }
   return round;
 }
 
@@ -1709,14 +1861,25 @@ function buildRejudgeOverlay(exp, completedCellCount, rejudgeMode, localChecked,
   return modal.overlay;
 }
 
-function buildRetryOverlay(exp, targetConfig, retryCount, errorCount, missingCount, cells, retryJudgeMode, retryJudgeLocalChecked) {
-  const modal = buildActionModal(`Retry ${retryCount} Error Cells`, "retry-cancel", "760px");
+function buildRetryOverlay(exp, targetConfig, retryCount, errorCount, missingCount, cells) {
+  const modal = buildActionModal(`Retry ${retryCount} Error Cells`, "retry-cancel", "620px");
   const form = overlayForm("retry-form");
-  const judgeGroup = retryJudgeGroup(targetConfig, retryJudgeMode, retryJudgeLocalChecked);
   form.append(
-    retryTargetGroup(targetConfig),
-    retryAttackerGroup(targetConfig),
-    judgeGroup.element,
+    retryCredentialGroup(
+      "Target LLM credentials",
+      "target",
+      targetConfig.target_profile_id || targetConfig.profile_id || "",
+    ),
+    retryCredentialGroup(
+      "Attacker LLM credentials",
+      "attacker",
+      targetConfig.attacker_profile_id || "",
+    ),
+    retryCredentialGroup(
+      "Judge LLM credentials",
+      "judge",
+      targetConfig.judge_profile_id || "",
+    ),
     formActions(
       overlayButton("retry-cancel-btn", "Cancel", "button", "btn btn-secondary"),
       overlayButton("retry-confirm-btn", `Retry ${retryCount} Cells`, "submit", "btn btn-primary"),
@@ -1728,68 +1891,26 @@ function buildRetryOverlay(exp, targetConfig, retryCount, errorCount, missingCou
       exp.name,
       `${errorCount} errors, ${missingCount} missing out of ${exp.total_cells} total. ${cells.length - errorCount} successful cells will be kept.`,
     ),
+    textNodeElement(
+      "p",
+      "text-muted",
+      "Models, endpoints, prompts, Judge policy, parameters, and limits come from the pinned experiment plan and cannot be changed during retry.",
+    ),
     form,
   );
-  const retryJudgePolicyControl = mountJudgePolicyControl({
-    summaryRoot: judgeGroup.policySummaryRoot,
-    editorRoot: judgeGroup.policyEditorRoot,
-    idPrefix: "retry-judge-policy",
-  });
-  retryJudgePolicyControl.setPolicy(targetConfig.judge_policy || {});
-  return { overlay: modal.overlay, judgePolicyControl: retryJudgePolicyControl };
+  return modal.overlay;
 }
 
-function retryTargetGroup(targetConfig) {
-  const group = configGroup("Target LLM");
+function retryCredentialGroup(label, role, profileId) {
+  const group = configGroup(label);
+  const keyId = role === "target" ? "retry-api-key" : `retry-${role}-key`;
   group.append(
-    formRow(formField("API Key", overlayInput("retry-api-key", "password", "", "sk-..."), { className: "flex-1" })),
     formRow(
-      formField("Base URL", overlayInput("retry-base-url", "text", targetConfig.api_base_url || ""), { className: "flex-1" }),
-      formField("Model", overlayInput("retry-model", "text", targetConfig.model || "")),
-    ),
-    formRow(formField("System Prompt", overlayInput("retry-system-prompt", "text", targetConfig.system_prompt || "You are a helpful assistant."), { className: "flex-1" })),
-  );
-  return group;
-}
-
-function retryAttackerGroup(targetConfig) {
-  const group = configGroup("Attacker LLM");
-  group.append(
-    formRow(formField("API Key (leave blank to use target key)", overlayInput("retry-attacker-key", "password", "", "same as target"), { className: "flex-1" })),
-    formRow(
-      formField("Base URL", overlayInput("retry-attacker-base-url", "text", targetConfig.attacker_api_base_url || targetConfig.api_base_url || ""), { className: "flex-1" }),
-      formField("Model", overlayInput("retry-attacker-model", "text", targetConfig.attacker_model || targetConfig.model || "")),
+      formField("API Key (optional)", overlayInput(keyId, "password", "", "session only"), { className: "flex-1" }),
+      formField("Profile ID (optional)", overlayInput(`retry-${role}-profile-id`, "text", profileId), { className: "flex-1" }),
     ),
   );
   return group;
-}
-
-function retryJudgeGroup(targetConfig, retryJudgeMode, retryJudgeLocalChecked) {
-  const group = configGroup("Judge LLM");
-  const customFields = document.createElement("div");
-  customFields.id = "retry-judge-custom-fields";
-  customFields.style.display = retryJudgeMode === "custom" ? "" : "none";
-  customFields.append(
-    overlayToggle("retry-judge-local", retryJudgeLocalChecked, "Local (LM Studio / Ollama — no API key)"),
-    formRow(formField("API Key", overlayInput("retry-judge-key", "password", "", "sk-..."), { id: "retry-judge-key-field", className: "flex-1", hidden: retryJudgeLocalChecked })),
-    formRow(
-      formField("Base URL", overlayInput("retry-judge-base-url", "text", targetConfig.judge_api_base_url || targetConfig.api_base_url || ""), { className: "flex-1" }),
-      formField("Model", overlayInput("retry-judge-model", "text", targetConfig.judge_model || "")),
-    ),
-  );
-  const policySummaryRoot = document.createElement("div");
-  policySummaryRoot.id = "retry-judge-policy-summary-root";
-  policySummaryRoot.className = "judge-policy-summary-root";
-  const policyEditorRoot = document.createElement("div");
-  policyEditorRoot.id = "retry-judge-policy-editor-root";
-  policyEditorRoot.className = "judge-policy-editor-root";
-  group.append(
-    formRow(formField("Judge Source", judgeModeSelect("retry-judge-mode", retryJudgeMode))),
-    customFields,
-    policySummaryRoot,
-    policyEditorRoot,
-  );
-  return { element: group, policySummaryRoot, policyEditorRoot };
 }
 
 function buildActionModal(title, closeId, maxWidth) {
@@ -2005,20 +2126,18 @@ async function rejudgeExperiment(experimentId) {
 }
 
 async function retryExperiment(experimentId) {
-  // Get the experiment to read its original config
   let exp;
   try {
-    const data = await fetchJson(`/api/experiments/${experimentId}`);
+    const data = await fetchJson(`/api/experiments/${encodeURIComponent(experimentId)}`);
     exp = data.item;
   } catch (err) {
     alert("Failed to load experiment: " + err.message);
     return;
   }
 
-  // Count errors
   const cells = exp.cell_results || [];
   const errorCount = cells.filter((c) => c.status === "error").length;
-  const missingCount = exp.total_cells - cells.length;
+  const missingCount = Math.max(0, exp.total_cells - cells.length);
   const retryCount = errorCount + missingCount;
 
   if (retryCount === 0) {
@@ -2026,90 +2145,41 @@ async function retryExperiment(experimentId) {
     return;
   }
 
-  // Build editable config from stored values
   const tc = exp.target_config || {};
-  const retryJudgeMode = tc.judge_mode || (
-    tc.attacker_api_base_url || tc.attacker_model ? "attacker" : "target"
-  );
-  const retryJudgeLocalChecked = tc.judge_local === true || tc.judge_local === "true" || tc.judge_api_key === "lm-studio";
-
-  // Show review dialog
-  const retryModal = buildRetryOverlay(
+  const overlay = buildRetryOverlay(
     exp,
     tc,
     retryCount,
     errorCount,
     missingCount,
     cells,
-    retryJudgeMode,
-    retryJudgeLocalChecked,
   );
-  const { overlay, judgePolicyControl: retryJudgePolicyControl } = retryModal;
   document.body.appendChild(overlay);
+  const retryBatchRequest = {
+    action: "restart",
+    completed_policy: "exclude",
+    request_id: retryRequestId(),
+  };
 
   const close = () => overlay.remove();
   overlay.querySelector("#retry-cancel").addEventListener("click", close);
   overlay.querySelector("#retry-cancel-btn").addEventListener("click", close);
   overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
-  const retryJudgeModeSelect = overlay.querySelector("#retry-judge-mode");
-  const retryJudgeFields = overlay.querySelector("#retry-judge-custom-fields");
-  const retryJudgeLocal = overlay.querySelector("#retry-judge-local");
-  const retryJudgeKeyField = overlay.querySelector("#retry-judge-key-field");
-  const retryJudgeBaseUrl = overlay.querySelector("#retry-judge-base-url");
-  const updateRetryJudgeVisibility = () => {
-    retryJudgeFields.style.display = retryJudgeModeSelect.value === "custom" ? "" : "none";
-  };
-  retryJudgeModeSelect.addEventListener("change", updateRetryJudgeVisibility);
-  retryJudgeLocal.addEventListener("change", () => {
-    const isLocal = retryJudgeLocal.checked;
-    retryJudgeKeyField.style.display = isLocal ? "none" : "";
-    if (isLocal && !retryJudgeBaseUrl.value) retryJudgeBaseUrl.value = "http://localhost:1234/v1";
-  });
 
   overlay.querySelector("#retry-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const apiKey = overlay.querySelector("#retry-api-key").value.trim();
-    if (!apiKey) { alert("API key is required."); return; }
-
-    const attackerKey = overlay.querySelector("#retry-attacker-key").value.trim() || apiKey;
-    const retryJudgeMode = overlay.querySelector("#retry-judge-mode").value;
-    const retryJudgeIsLocal = overlay.querySelector("#retry-judge-local").checked;
-    const retryJudgeKey = retryJudgeIsLocal
-      ? "lm-studio"
-      : overlay.querySelector("#retry-judge-key").value.trim();
-    const retryJudgePolicyMessage = retryJudgePolicyControl.validationMessage();
-    if (retryJudgePolicyMessage) {
-      retryJudgePolicyControl.open();
-      alert(retryJudgePolicyMessage);
-      return;
-    }
-    const retryJudgePolicy = configuredJudgePolicy(retryJudgePolicyControl.getPolicy());
-
-    const targetConfig = {
-      api_key: apiKey,
-      api_base_url: overlay.querySelector("#retry-base-url").value.trim(),
-      model: overlay.querySelector("#retry-model").value.trim(),
-      system_prompt: overlay.querySelector("#retry-system-prompt").value.trim(),
-      attacker_api_key: attackerKey,
-      attacker_api_base_url: overlay.querySelector("#retry-attacker-base-url").value.trim(),
-      attacker_model: overlay.querySelector("#retry-attacker-model").value.trim(),
-      judge_mode: retryJudgeMode,
-      judge_local: retryJudgeIsLocal,
-      judge_api_key: retryJudgeKey,
-      judge_api_base_url: overlay.querySelector("#retry-judge-base-url").value.trim(),
-      judge_model: overlay.querySelector("#retry-judge-model").value.trim(),
-      ...(tc.attacker_system_prompt ? { attacker_system_prompt: tc.attacker_system_prompt } : {}),
-      ...(tc.judge_system_prompt ? { judge_system_prompt: tc.judge_system_prompt } : {}),
-      ...(retryJudgePolicy ? { judge_policy: retryJudgePolicy } : {}),
-    };
-
-    overlay.querySelector("#retry-confirm-btn").disabled = true;
-    overlay.querySelector("#retry-confirm-btn").textContent = "Starting...";
+    const credentialOverrides = retryCredentialOverrides(overlay);
+    const confirmButton = overlay.querySelector("#retry-confirm-btn");
+    confirmButton.disabled = true;
+    confirmButton.textContent = "Starting...";
 
     try {
-      await fetchJson(`/api/experiments/${experimentId}/retry`, {
+      await fetchJson(`/api/experiments/${encodeURIComponent(experimentId)}/retry-batches`, {
         method: "POST",
-        body: JSON.stringify({ target_config: targetConfig }),
+        body: JSON.stringify({
+          ...retryBatchRequest,
+          credential_overrides: credentialOverrides,
+        }),
       });
       close();
       loadExperiments();
@@ -2117,10 +2187,31 @@ async function retryExperiment(experimentId) {
       switchTab("history");
     } catch (err) {
       alert("Failed to retry: " + err.message);
-      overlay.querySelector("#retry-confirm-btn").disabled = false;
-      overlay.querySelector("#retry-confirm-btn").textContent = `Retry ${retryCount} Cells`;
+      confirmButton.disabled = false;
+      confirmButton.textContent = `Retry ${retryCount} Cells`;
     }
   });
+}
+
+function retryCredentialOverrides(overlay) {
+  const overrides = {};
+  for (const [selector, key] of [
+    ["#retry-api-key", "api_key"],
+    ["#retry-attacker-key", "attacker_api_key"],
+    ["#retry-judge-key", "judge_api_key"],
+    ["#retry-target-profile-id", "target_profile_id"],
+    ["#retry-attacker-profile-id", "attacker_profile_id"],
+    ["#retry-judge-profile-id", "judge_profile_id"],
+  ]) {
+    const value = overlay.querySelector(selector)?.value.trim() || "";
+    if (value) overrides[key] = value;
+  }
+  return overrides;
+}
+
+function retryRequestId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `retry-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 async function loadExperiment(experimentId) {

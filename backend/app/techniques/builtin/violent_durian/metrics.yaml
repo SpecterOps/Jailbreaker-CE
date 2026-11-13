@@ -1,0 +1,11 @@
+version: 1
+metrics:
+  - id: official_score
+    source: target_judge.score
+    aggregation: last
+  - id: rounds_completed
+    source: events.round.completed
+    aggregation: count
+  - id: target_calls
+    source: calls.target
+    aggregation: count

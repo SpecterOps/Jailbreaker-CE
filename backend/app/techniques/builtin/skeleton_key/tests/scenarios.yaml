@@ -1,0 +1,14 @@
+version: 1
+default_scenario: default_flow
+scenarios:
+  default_flow:
+    intent: deterministic skeleton intent
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - setup accepted
+            - final deterministic response
+          target_judge:
+            - '{"score":3,"rationale":"flow completed"}'
+    selected_attempt_number: 1

@@ -20,6 +20,7 @@ from app.targets import (
     TargetDescriptor,
 )
 from app.targets.live_chatbot import LiveChatbotAdapter
+from app.techniques.core.catalog import TechniqueCatalog
 from app.evaluation.models import (
     ExecutionRequest,
     TargetKind,
@@ -182,6 +183,23 @@ def test_runner_executes_text_technique_against_chatbot() -> None:
 
     assert result.technique_key == "system_prompt_extraction"
     assert result.score > 0
+
+
+def test_store_batches_legacy_result_into_normalized_events() -> None:
+    from app.api.store import EvaluationStore
+    from app.persistence import NoopRunPersistence, NoopTechniqueRuntimePersistence
+
+    store = EvaluationStore(
+        persistence=NoopRunPersistence(),
+        technique_runtime_persistence=NoopTechniqueRuntimePersistence(),
+    )
+
+    run = store.create_run("system_prompt_extraction", mode="demo")
+    events = store.normalized_events_by_run[run["run_id"]]
+
+    assert events[0].event_type == "run.started"
+    assert any(item.event_type == "target.completed" for item in events)
+    assert events[-1].event_type == "run.completed"
 
 
 def test_runner_executes_agent_technique_with_trace_capture() -> None:
@@ -865,3 +883,74 @@ def test_import_suite_validates_technique_keys() -> None:
 
     assert suite.suite_name == "starter-suite"
     assert suite.cases[0].technique_key == "direct_prompt_injection"
+
+
+def test_import_suite_honors_an_injected_catalog() -> None:
+    with pytest.raises(ValueError, match="Unknown technique key"):
+        import_suite_from_json(
+            """
+            {
+              "suite_name": "empty-catalog-suite",
+              "source": "unit-test",
+              "cases": [
+                {
+                  "technique_key": "direct_prompt_injection",
+                  "unsafe_intent_label": "instruction-override-check"
+                }
+              ]
+            }
+            """,
+            catalog=TechniqueCatalog(),
+        )
+
+
+def test_execution_router_keeps_the_legacy_executor_boundary_unchanged() -> None:
+    import asyncio
+
+    from app.techniques import build_default_catalog
+    from app.techniques.contracts import (
+        AttackOutcome,
+        CorrelationIds,
+        ExecutionStatus,
+        ResolvedRunSpec,
+        ResultDisposition,
+        TechniqueOutcome,
+        TechniqueRequest,
+    )
+    from app.techniques.core.router import ExecutionRouter
+
+    router = ExecutionRouter(build_default_catalog(discover_modular=False))
+    route = router.resolve("direct_prompt_injection")
+    registered = route.registered
+    request = TechniqueRequest(
+        correlation=CorrelationIds("legacy-router-run", "legacy-router-attempt"),
+        spec=ResolvedRunSpec(
+            technique_id=registered.definition.identity.id,
+            technique_version=registered.definition.identity.version,
+            implementation_id=registered.implementation.id,
+            implementation_kind=registered.implementation.kind,
+            contract_version=registered.implementation.contract_version,
+            manifest_hash=registered.manifest_hash,
+            asset_hashes=registered.asset_hashes,
+        ),
+    )
+    expected = TechniqueOutcome(
+        execution_status=ExecutionStatus.COMPLETED,
+        result_disposition=ResultDisposition.NOT_TESTED,
+        attack_outcome=AttackOutcome.INCONCLUSIVE,
+    )
+
+    class LegacyExecutor:
+        async def execute(self, request, context) -> TechniqueOutcome:
+            return expected
+
+    outcome = asyncio.run(
+        router.execute(
+            route,
+            request,
+            object(),
+            executors={registered.implementation.kind: LegacyExecutor()},
+        )
+    )
+
+    assert outcome is expected

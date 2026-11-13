@@ -1,0 +1,20 @@
+version: 1
+metrics:
+  - id: candidate_count
+    source: events.candidate.created
+    aggregation: count
+  - id: depths_completed
+    source: events.depth.completed
+    aggregation: count
+  - id: selected_score
+    source: events.candidate.selected.score
+    aggregation: last
+  - id: pruned_count
+    source: events.candidate.pruned
+    aggregation: count
+  - id: retained_count
+    source: events.candidate.retained
+    aggregation: count
+  - id: target_calls
+    source: calls.target
+    aggregation: count

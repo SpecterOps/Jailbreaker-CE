@@ -1,0 +1,13 @@
+version: 1
+default_scenario: target_stays_concise
+scenarios:
+  target_stays_concise:
+    intent: test intent
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - Returns are accepted within 30 days from delivery.
+          target_judge:
+            - '{"score": 3, "rationale": "concise"}'
+    selected_attempt_number: 1

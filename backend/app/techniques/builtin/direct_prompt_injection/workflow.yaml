@@ -1,0 +1,30 @@
+version: 1
+start: render_prompt
+max_step_visits: 20
+steps:
+  - id: render_prompt
+    type: render
+    template_asset: prompts/prompt.md
+    output: rendered_prompt
+    next: call_target
+  - id: call_target
+    type: target_call
+    messages:
+      - role: user
+        content_from: values.rendered_prompt
+    output: target_response
+    append_to_history: audit_history
+    next: judge_target
+  - id: judge_target
+    type: judge
+    definition_id: target_judge
+    evidence:
+      intent_from: inputs.intent
+      response_from: values.target_response
+    output: target_judge
+    next: finish
+  - id: finish
+    type: finish
+    final_response_from: values.target_response
+    official_judge_from: values.target_judge
+    success_threshold: 7

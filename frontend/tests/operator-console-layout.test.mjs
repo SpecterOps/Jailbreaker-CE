@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { runInNewContext } from "node:vm";
 
 const html = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
 const css = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
 const app = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
+const experiments = readFileSync(new URL("../public/experiments.js", import.meta.url), "utf8");
+const history = readFileSync(new URL("../public/history.js", import.meta.url), "utf8");
 const domHelpers = readFileSync(new URL("../public/components/dom.js", import.meta.url), "utf8");
+const conversationEvidence = readFileSync(new URL("../public/components/conversation-evidence.js", import.meta.url), "utf8");
 const judgePolicyControl = readFileSync(new URL("../public/components/judge-policy-control.js", import.meta.url), "utf8");
 const profileConfig = readFileSync(new URL("../public/components/profile-config.js", import.meta.url), "utf8");
 const vaultControl = readFileSync(new URL("../public/components/vault-control.js", import.meta.url), "utf8");
@@ -13,6 +17,19 @@ const htmlSink = "inner" + "HTML";
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function functionSource(source, declaration) {
+  const start = source.indexOf(declaration);
+  assert.notEqual(start, -1, `Expected to find ${declaration}`);
+  const blockStart = source.indexOf("{", start);
+  let depth = 1;
+  for (let index = blockStart + 1; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    if (source[index] === "}") depth -= 1;
+    if (depth === 0) return source.slice(start, index + 1);
+  }
+  assert.fail(`Expected to find closing brace for ${declaration}`);
 }
 
 function ruleBody(selector, source = css) {
@@ -253,6 +270,70 @@ test("dashboard script drives run monitor from all run paths", () => {
     app,
     /catch \(err\) \{[\s\S]*failMonitorRun\(`Error: \$\{err\.message\}`\)/,
     "run errors should be reflected in the monitor",
+  );
+});
+
+test("single run polling stops on terminal error and renders backend detail", async () => {
+  let pollCount = 0;
+  const statuses = [];
+  const failures = [];
+  const context = {
+    setTimeout(callback) {
+      callback();
+    },
+    techniqueDisplayName() {
+      return "Probe";
+    },
+    async fetchJson() {
+      pollCount += 1;
+      return {
+        item: {
+          status: "error",
+          error: "judge output was not parseable",
+          conversation: [],
+        },
+      };
+    },
+    updateTechniqueRun() {},
+    setMonitorProgress() {},
+    finishMonitorRun() {},
+    setMonitorError() {},
+    setStatus(message) {
+      statuses.push(message);
+    },
+    failMonitorRun(message) {
+      failures.push(message);
+    },
+  };
+  const pollSource = functionSource(app, "async function pollRunUntilDone");
+
+  await runInNewContext(
+    `${pollSource}\npollRunUntilDone("run-error", "probe")`,
+    context,
+  );
+
+  assert.equal(pollCount, 1, "terminal error should stop polling immediately");
+  assert.deepEqual(statuses, ["probe failed: judge output was not parseable"]);
+  assert.deepEqual(failures, ["Probe failed: judge output was not parseable"]);
+});
+
+test("terminal error uses the failed run status presentation", () => {
+  const statusSource = functionSource(app, "function runStatusNodes");
+  const rendered = runInNewContext(
+    `${statusSource}\nrunStatusNodes({ run: { asr: 0, score: 0 } }, "error", false)`,
+    {
+      statusPill(statusClass, label) {
+        return { kind: "pill", statusClass, label };
+      },
+      domElement(tag, className, text) {
+        return { kind: "element", tag, className, text };
+      },
+    },
+  );
+
+  assert.equal(
+    JSON.stringify(rendered),
+    JSON.stringify([{ kind: "pill", statusClass: "failed", label: "Failed" }]),
   );
 });
 
@@ -503,7 +584,50 @@ test("dashboard conversation modals avoid innerHTML", () => {
   assert.doesNotMatch(app, /modalBody\.innerHTML\b/, "dashboard conversation modals should render with DOM nodes and textContent");
 });
 
+test("generic conversation dispatchers support declared tree and raw formats", () => {
+  for (const [name, source] of [["dashboard", app], ["experiments", experiments]]) {
+    assert.match(source, /kind === "tree"/, `${name} should dispatch the generic tree kind`);
+    assert.match(source, /function renderTree\(/, `${name} should expose one generic tree renderer`);
+    assert.match(source, /function renderUnknownConversationEntry\(/, `${name} should preserve unknown\/raw evidence safely`);
+    assert.doesNotMatch(source, /renderTree[\s\S]{0,2000}(?:tap|TAP)/, `${name} tree rendering must not branch on TAP`);
+  }
+});
+
+test("all conversation surfaces share canonical tree evidence rendering", () => {
+  for (const [name, source] of [
+    ["dashboard", app],
+    ["experiments", experiments],
+    ["history", history],
+  ]) {
+    assert.match(
+      source,
+      /renderCanonicalTreeBranch\(/,
+      `${name} should use the shared canonical branch renderer`,
+    );
+  }
+});
+
+test("conversation renderers distinguish failed judges from literal zero", () => {
+  assert.match(conversationEvidence, /export function hasJudgeScore\(/, "shared evidence rendering should centralize null-safe score detection");
+  assert.match(experiments, /hasJudgeScore\(/, "experiments should use null-safe score detection");
+  assert.doesNotMatch(experiments, /if \(judge\.score\)/, "judge score zero must not be treated as missing");
+  assert.doesNotMatch(experiments, /if \(best\.judge_score\)/, "candidate score zero must not be treated as missing");
+});
+
+test("round renderers preserve generic attacker and transformed evidence", () => {
+  assert.match(
+    app,
+    /const hasAttacker = \(attacker\.input \|\| attacker\.output\)/,
+    "dashboard rounds should not hide an attacker output when its input is unavailable",
+  );
+  for (const [name, source] of [["dashboard", app], ["experiments", experiments]]) {
+    assert.match(source, /target\.prompt/, `${name} should render each projected target prompt`);
+    assert.match(source, /target\.poisoned/, `${name} should render projected transformation evidence`);
+    assert.match(source, /attacker\.output/, `${name} should render projected attacker output`);
+  }
+});
+
 
 test("shared frontend helper modules avoid innerHTML", () => {
-  assert.doesNotMatch(`${domHelpers}\n${profileConfig}\n${vaultControl}`, /\.innerHTML\b/, "shared helpers should avoid direct HTML injection");
+  assert.doesNotMatch(`${domHelpers}\n${conversationEvidence}\n${profileConfig}\n${vaultControl}`, /\.innerHTML\b/, "shared helpers should avoid direct HTML injection");
 });

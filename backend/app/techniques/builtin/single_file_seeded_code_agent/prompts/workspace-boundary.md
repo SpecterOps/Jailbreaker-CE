@@ -1,0 +1,3 @@
+BEGIN WORKSPACE FILE: main.py
+{seed_code}
+END WORKSPACE FILE

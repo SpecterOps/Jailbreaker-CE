@@ -5,11 +5,11 @@ import logging
 import os
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 from datetime import date, datetime
 from decimal import Decimal
 
-from .store import STORE
+from .store import RETRY_CREDENTIAL_KEYS, STORE, serialize_retry_batch
 
 log = logging.getLogger("api.server")
 
@@ -61,6 +61,7 @@ class ApiHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed_url = urlparse(self.path)
         route = parsed_url.path
+        route_parts = tuple(route.split("/")[1:])
         query = parse_qs(parsed_url.query)
         log.info("GET %s", route)
         if route == "/health":
@@ -127,8 +128,43 @@ class ApiHandler(BaseHTTPRequestHandler):
         if route == "/api/experiments":
             self._send_json({"items": STORE.list_experiments()})
             return
-        if route.startswith("/api/experiments/") and route.endswith("/export"):
-            experiment_id = route.split("/")[-2]
+        if _matches_raw_route(
+            route_parts,
+            ("api", "experiments", None, "retry-batches", None),
+        ):
+            experiment_id = _decode_route_identifier(route_parts[2])
+            retry_batch_id = _decode_route_identifier(route_parts[4])
+            try:
+                batch = STORE.get_retry_batch(experiment_id, retry_batch_id)
+            except KeyError:
+                self._send_json(
+                    {"error": "Retry batch not found."},
+                    status=HTTPStatus.NOT_FOUND,
+                )
+                return
+            self._send_json({"item": serialize_retry_batch(batch)})
+            return
+        if _matches_raw_route(
+            route_parts,
+            ("api", "experiments", None, "cells", None, "attempts"),
+        ):
+            experiment_id = _decode_route_identifier(route_parts[2])
+            cell_id = _decode_route_identifier(route_parts[4])
+            try:
+                history = STORE.get_experiment_cell_attempts(experiment_id, cell_id)
+            except KeyError:
+                self._send_json(
+                    {"error": "Experiment cell not found."},
+                    status=HTTPStatus.NOT_FOUND,
+                )
+                return
+            self._send_json(history)
+            return
+        if _matches_raw_route(
+            route_parts,
+            ("api", "experiments", None, "export"),
+        ):
+            experiment_id = _decode_route_identifier(route_parts[2])
             query = urlparse(self.path).query
             fmt = "csv"
             for part in query.split("&"):
@@ -154,8 +190,11 @@ class ApiHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(body)
             return
-        if route.startswith("/api/experiments/") and route.endswith("/export-full"):
-            experiment_id = route.split("/")[-2]
+        if _matches_raw_route(
+            route_parts,
+            ("api", "experiments", None, "export-full"),
+        ):
+            experiment_id = _decode_route_identifier(route_parts[2])
             csv_data = STORE.export_experiment_full_csv(experiment_id)
             if csv_data is None:
                 self._send_json({"error": "Experiment not found."}, status=HTTPStatus.NOT_FOUND)
@@ -169,16 +208,22 @@ class ApiHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
-        if route.startswith("/api/experiments/") and route.endswith("/metrics"):
-            experiment_id = route.split("/")[-2]
+        if _matches_raw_route(
+            route_parts,
+            ("api", "experiments", None, "metrics"),
+        ):
+            experiment_id = _decode_route_identifier(route_parts[2])
             result = STORE.compute_experiment_metrics(experiment_id)
             if result is None:
                 self._send_json({"error": "Experiment not found."}, status=HTTPStatus.NOT_FOUND)
                 return
             self._send_json(result)
             return
-        if route.startswith("/api/experiments/"):
-            experiment_id = route.split("/")[-1]
+        if _matches_raw_route(
+            route_parts,
+            ("api", "experiments", None),
+        ):
+            experiment_id = _decode_route_identifier(route_parts[2])
             result = STORE.get_experiment(experiment_id)
             if result is None:
                 self._send_json({"error": "Experiment not found."}, status=HTTPStatus.NOT_FOUND)
@@ -208,8 +253,43 @@ class ApiHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         route = urlparse(self.path).path
+        route_parts = tuple(route.split("/")[1:])
         log.info("POST %s", route)
         if not self._validate_content_length_or_400():
+            return
+
+        if _matches_raw_route(
+            route_parts,
+            ("api", "experiments", None, "retry-batches"),
+        ):
+            experiment_id = _decode_route_identifier(route_parts[2])
+            payload = self._read_json_or_400()
+            if payload is None:
+                return
+            try:
+                request = _validated_retry_batch_request(payload)
+                batch = STORE.create_retry_batch(
+                    experiment_id,
+                    action=request["action"],
+                    cell_ids=request["cell_ids"],
+                    completed_policy=request["completed_policy"],
+                    credential_overrides=request["credential_overrides"],
+                    request_id=request["request_id"],
+                    requested_by="workspace-user",
+                )
+            except KeyError:
+                self._send_json(
+                    {"error": "Experiment not found."},
+                    status=HTTPStatus.NOT_FOUND,
+                )
+                return
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+                return
+            self._send_json(
+                {"item": serialize_retry_batch(batch)},
+                status=HTTPStatus.ACCEPTED,
+            )
             return
 
         if route == "/api/runs":
@@ -341,8 +421,11 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._send_json({"item": dataset}, status=HTTPStatus.CREATED)
             return
 
-        if route.startswith("/api/experiments/") and route.endswith("/stop"):
-            experiment_id = route.split("/")[-2]
+        if _matches_raw_route(
+            route_parts,
+            ("api", "experiments", None, "stop"),
+        ):
+            experiment_id = _decode_route_identifier(route_parts[2])
             result = STORE.stop_experiment(experiment_id)
             if result is None:
                 self._send_json({"error": "Experiment not found."}, status=HTTPStatus.NOT_FOUND)
@@ -350,15 +433,25 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._send_json({"item": result})
             return
 
-        if route.startswith("/api/experiments/") and route.endswith("/retry"):
-            experiment_id = route.split("/")[-2]
+        if _matches_raw_route(
+            route_parts,
+            ("api", "experiments", None, "retry"),
+        ):
+            experiment_id = _decode_route_identifier(route_parts[2])
             payload = self._read_json_or_400()
             if payload is None:
                 return
-            target_config = payload.get("target_config") or {}
-            if not _has_target_credentials(target_config):
+            unknown = set(payload).difference({"target_config"})
+            if unknown:
                 self._send_json(
-                    {"error": "`target_config.api_key` or `target_config.target_profile_id` is required."},
+                    {"error": "Unknown retry request fields: " + ", ".join(sorted(unknown))},
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+                return
+            target_config = payload.get("target_config", {})
+            if not isinstance(target_config, dict):
+                self._send_json(
+                    {"error": "`target_config` must be an object."},
                     status=HTTPStatus.BAD_REQUEST,
                 )
                 return
@@ -373,8 +466,11 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._send_json({"item": result}, status=HTTPStatus.ACCEPTED)
             return
 
-        if route.startswith("/api/experiments/") and route.endswith("/rejudge"):
-            experiment_id = route.split("/")[-2]
+        if _matches_raw_route(
+            route_parts,
+            ("api", "experiments", None, "rejudge"),
+        ):
+            experiment_id = _decode_route_identifier(route_parts[2])
             payload = self._read_json_or_400()
             if payload is None:
                 return
@@ -691,6 +787,91 @@ def _run_history_filters(query: dict[str, list[str]]) -> dict[str, str]:
         "max_asr",
     )
     return {key: _query_value(query, key) for key in keys if _query_value(query, key)}
+
+
+def _matches_raw_route(
+    route_parts: tuple[str, ...],
+    shape: tuple[str | None, ...],
+) -> bool:
+    """Match static raw path segments before decoding non-empty identifiers."""
+    if len(route_parts) != len(shape):
+        return False
+    return all(
+        bool(part) if expected is None else part == expected
+        for part, expected in zip(route_parts, shape, strict=True)
+    )
+
+
+def _decode_route_identifier(raw_identifier: str) -> str:
+    """Percent-decode an identifier exactly once after its route shape matches."""
+    return unquote(raw_identifier)
+
+
+_RETRY_BATCH_KEYS = frozenset(
+    {
+        "action",
+        "cell_ids",
+        "completed_policy",
+        "credential_overrides",
+        "request_id",
+    }
+)
+def _validated_retry_batch_request(payload: dict[str, object]) -> dict[str, object]:
+    unknown = set(payload).difference(_RETRY_BATCH_KEYS)
+    if unknown:
+        raise ValueError(
+            "Unknown retry batch request fields: " + ", ".join(sorted(unknown))
+        )
+
+    action = payload.get("action")
+    if not isinstance(action, str) or action not in {"restart", "resume"}:
+        raise ValueError("`action` must be 'restart' or 'resume'.")
+
+    cell_ids = payload.get("cell_ids")
+    if cell_ids is not None:
+        if not isinstance(cell_ids, list) or any(
+            not isinstance(cell_id, str) or not cell_id.strip()
+            for cell_id in cell_ids
+        ):
+            raise ValueError("`cell_ids` must be null or a list of non-empty strings.")
+
+    completed_policy = payload.get("completed_policy", "exclude")
+    if not isinstance(completed_policy, str) or completed_policy not in {
+        "exclude",
+        "diagnostic_only",
+        "replace_on_valid_completion",
+        "new_repeat",
+    }:
+        raise ValueError("Unsupported `completed_policy`.")
+
+    credential_overrides = payload.get("credential_overrides", {})
+    if not isinstance(credential_overrides, dict):
+        raise ValueError("`credential_overrides` must be an object.")
+    unknown_credentials = set(credential_overrides).difference(
+        RETRY_CREDENTIAL_KEYS
+    )
+    if unknown_credentials:
+        raise ValueError(
+            "Retry configuration changes require an experiment revision: "
+            + ", ".join(sorted(unknown_credentials))
+        )
+    for key, value in credential_overrides.items():
+        if not isinstance(value, str):
+            raise ValueError(f"Retry credential override '{key}' must be a string.")
+
+    request_id = payload.get("request_id")
+    if request_id is not None and (
+        not isinstance(request_id, str) or not request_id.strip()
+    ):
+        raise ValueError("`request_id` must be absent or a non-empty string.")
+
+    return {
+        "action": action,
+        "cell_ids": cell_ids,
+        "completed_policy": completed_policy,
+        "credential_overrides": credential_overrides,
+        "request_id": request_id,
+    }
 
 
 def run() -> None:

@@ -1,0 +1,24 @@
+api_version: "1"
+contract_version: "1"
+technique:
+  id: invalid-judge
+  version: 1.0.0
+  name: Invalid judge
+  family: test
+  summary: References an undeclared official judge.
+  capabilities:
+    - single_shot
+implementation:
+  id: modular
+  kind: workflow
+  entrypoint: workflow.yaml
+judges:
+  - id: target_judge
+    role: missing_role
+    schedule: run_end
+    purposes:
+      - official_score
+result_policy:
+  official_judge: missing_judge
+  auxiliary_judges:
+    - missing_auxiliary

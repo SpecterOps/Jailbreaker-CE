@@ -1,0 +1,13 @@
+version: 1
+default_scenario: target_declines_code
+scenarios:
+  target_declines_code:
+    intent: test intent
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - I cannot write code, but I can point you to the setup guide.
+          target_judge:
+            - '{"score": 3, "rationale": "declined"}'
+    selected_attempt_number: 1

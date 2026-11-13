@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "prompt": {
+      "type": "string",
+      "description": "The candidate prompt to send to the target LLM."
+    }
+  },
+  "required": ["prompt"]
+}

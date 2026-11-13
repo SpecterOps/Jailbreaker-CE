@@ -36,12 +36,60 @@ CREATE TABLE IF NOT EXISTS experiments (
     repeat_count INTEGER NOT NULL DEFAULT 1,
     max_rounds INTEGER NOT NULL DEFAULT 5,
     completed_cells INTEGER NOT NULL DEFAULT 0,
+    execution_generation BIGINT NOT NULL DEFAULT 0,
+    execution_owner_id TEXT NOT NULL DEFAULT '',
     report JSONB,
     error TEXT,
     created_by TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     completed_at TIMESTAMPTZ
 );
+
+ALTER TABLE experiments
+    ADD COLUMN IF NOT EXISTS execution_generation BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE experiments
+    ADD COLUMN IF NOT EXISTS execution_owner_id TEXT NOT NULL DEFAULT '';
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'experiments'::regclass
+          AND conname = 'experiments_execution_generation_check'
+    ) THEN
+        ALTER TABLE experiments
+            ADD CONSTRAINT experiments_execution_generation_check
+            CHECK (execution_generation >= 0);
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS experiment_execution_operations (
+    operation_id TEXT PRIMARY KEY,
+    experiment_id TEXT NOT NULL
+        REFERENCES experiments(experiment_id) ON DELETE CASCADE,
+    execution_generation BIGINT NOT NULL CHECK (execution_generation >= 1),
+    execution_owner_id TEXT NOT NULL,
+    operation_kind TEXT NOT NULL,
+    worker_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('running', 'finished')),
+    outcome TEXT CHECK (
+        outcome IS NULL OR outcome IN ('succeeded', 'failed', 'cancelled')
+    ),
+    lease_expires_at TIMESTAMPTZ,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (
+        (status = 'running' AND lease_expires_at IS NOT NULL
+            AND outcome IS NULL AND completed_at IS NULL)
+        OR (status = 'finished' AND lease_expires_at IS NULL
+            AND outcome IS NOT NULL AND completed_at IS NOT NULL)
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_experiment_execution_operations_owner
+    ON experiment_execution_operations
+    (experiment_id, execution_generation, execution_owner_id)
+    WHERE status = 'running';
 
 CREATE INDEX IF NOT EXISTS idx_experiments_created_at
     ON experiments (created_at DESC);

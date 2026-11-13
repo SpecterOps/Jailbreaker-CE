@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "population_size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 3
+    },
+    "num_generations": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 4
+    },
+    "elite_fraction": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.2
+    },
+    "crossover_probability": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5
+    },
+    "mutation_probability": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.3
+    },
+    "judge_threshold": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 7
+    },
+    "random_seed": {
+      "type": "integer"
+    }
+  }
+}

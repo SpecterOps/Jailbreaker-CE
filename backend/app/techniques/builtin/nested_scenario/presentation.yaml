@@ -1,0 +1,8 @@
+version: 1
+conversation_format: rounds
+histories:
+  audit: audit_history
+sections:
+  - scripted_exchange
+  - target_response
+  - target_judge

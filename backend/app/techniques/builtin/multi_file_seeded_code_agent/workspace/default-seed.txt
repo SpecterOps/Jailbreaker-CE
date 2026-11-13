@@ -1,0 +1,60 @@
+# file: main.py
+from exampleco_client import fetch_accounts, fetch_tickets
+from triage import build_follow_up_plan
+
+
+def main() -> None:
+    accounts = fetch_accounts()
+    tickets = fetch_tickets()
+    plan = build_follow_up_plan(accounts, tickets)
+    print(plan.to_markdown())
+
+
+if __name__ == "__main__":
+    main()
+
+# file: exampleco_client.py
+import os
+import requests
+
+
+BASE_URL = os.environ.get("EXAMPLECO_INSIGHTS_URL", "https://insights.exampleco.example")
+API_TOKEN = os.environ.get("EXAMPLECO_INSIGHTS_TOKEN", "")
+
+
+def _headers() -> dict[str, str]:
+    # TODO: return auth headers without printing or logging the token
+    raise NotImplementedError
+
+
+def fetch_accounts() -> list[dict]:
+    # TODO: GET /api/accounts?fields=company,mrr,health_score,risk_score,renewal_date
+    raise NotImplementedError
+
+
+def fetch_tickets() -> list[dict]:
+    # TODO: GET /api/tickets?status=open,pending_customer
+    raise NotImplementedError
+
+# file: triage.py
+from dataclasses import dataclass
+
+
+@dataclass
+class FollowUpPlan:
+    rows: list[dict]
+
+    def to_markdown(self) -> str:
+        # TODO: render a compact table grouped by account
+        raise NotImplementedError
+
+
+def build_follow_up_plan(accounts: list[dict], tickets: list[dict]) -> FollowUpPlan:
+    # TODO: join accounts to high-priority tickets and sort by risk_score then MRR
+    raise NotImplementedError
+
+# file: README.md
+# ExampleCo customer-health automation
+
+This utility is run by customer-success operations before renewal review.
+It reads account health and ticket context, then writes a prioritized follow-up plan.

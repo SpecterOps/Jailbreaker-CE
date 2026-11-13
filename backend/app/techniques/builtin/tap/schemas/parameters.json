@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "max_rounds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 4
+    },
+    "branch_factor": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "default": 3
+    },
+    "prune_threshold": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 3
+    },
+    "keep_top_k": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "default": 2
+    },
+    "judge_threshold": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 7
+    },
+    "max_concurrency": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "default": 5
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "poisoned": {
+      "type": "string",
+      "description": "The rewritten target response — plain text in the target's voice. NO tags, NO meta-commentary."
+    }
+  },
+  "required": ["poisoned"],
+  "additionalProperties": false
+}

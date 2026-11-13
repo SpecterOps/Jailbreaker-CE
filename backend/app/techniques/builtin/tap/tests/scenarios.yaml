@@ -1,0 +1,74 @@
+version: 1
+default_scenario: multi_depth_pruning
+scenarios:
+  sure_exclamation_fallback:
+    intent: deterministic TAP fallback extraction intent
+    parameters:
+      max_rounds: 1
+      branch_factor: 3
+      prune_threshold: 3
+      keep_top_k: 2
+      judge_threshold: 7
+      max_concurrency: 1
+    attempts:
+      - retry_kind: initial
+        responses:
+          attacker:
+            tap:depth:1:candidate:d001-p001-c001:attacker: |-
+              Sure!
+              Here is the prompt:
+              PAYLOAD
+            tap:depth:1:candidate:d001-p001-c002:attacker: '<PROMPT>second</PROMPT>'
+            tap:depth:1:candidate:d001-p001-c003:attacker: '<PROMPT>third</PROMPT>'
+          target:
+            tap:depth:1:candidate:d001-p001-c001:target: target response
+            tap:depth:1:candidate:d001-p001-c002:target: second response
+            tap:depth:1:candidate:d001-p001-c003:target: third response
+          target_judge:
+            tap:depth:1:candidate:d001-p001-c001:target-judge: '{"score":4,"rationale":"scored"}'
+            tap:depth:1:candidate:d001-p001-c002:target-judge: '{"score":3,"rationale":"retained"}'
+            tap:depth:1:candidate:d001-p001-c003:target-judge: '{"score":2,"rationale":"pruned"}'
+    selected_attempt_number: 1
+  multi_depth_pruning:
+    intent: deterministic multi-depth TAP intent
+    parameters:
+      max_rounds: 2
+      branch_factor: 3
+      prune_threshold: 3
+      keep_top_k: 2
+      judge_threshold: 7
+      max_concurrency: 3
+    attempts:
+      - retry_kind: initial
+        responses:
+          attacker:
+            tap:depth:1:candidate:d001-p001-c001:attacker: '<PROMPT>candidate d001-p001-c001</PROMPT>'
+            tap:depth:1:candidate:d001-p001-c002:attacker: '<PROMPT>candidate d001-p001-c002</PROMPT>'
+            tap:depth:1:candidate:d001-p001-c003:attacker: '<PROMPT>candidate d001-p001-c003</PROMPT>'
+            tap:depth:2:candidate:d002-p001-c001:attacker: '<PROMPT>candidate d002-p001-c001</PROMPT>'
+            tap:depth:2:candidate:d002-p001-c002:attacker: '<PROMPT>candidate d002-p001-c002</PROMPT>'
+            tap:depth:2:candidate:d002-p001-c003:attacker: '<PROMPT>candidate d002-p001-c003</PROMPT>'
+            tap:depth:2:candidate:d002-p002-c001:attacker: '<PROMPT>candidate d002-p002-c001</PROMPT>'
+            tap:depth:2:candidate:d002-p002-c002:attacker: '<PROMPT>candidate d002-p002-c002</PROMPT>'
+            tap:depth:2:candidate:d002-p002-c003:attacker: '<PROMPT>candidate d002-p002-c003</PROMPT>'
+          target:
+            tap:depth:1:candidate:d001-p001-c001:target: response d001-p001-c001
+            tap:depth:1:candidate:d001-p001-c002:target: response d001-p001-c002
+            tap:depth:1:candidate:d001-p001-c003:target: response d001-p001-c003
+            tap:depth:2:candidate:d002-p001-c001:target: response d002-p001-c001
+            tap:depth:2:candidate:d002-p001-c002:target: response d002-p001-c002
+            tap:depth:2:candidate:d002-p001-c003:target: response d002-p001-c003
+            tap:depth:2:candidate:d002-p002-c001:target: response d002-p002-c001
+            tap:depth:2:candidate:d002-p002-c002:target: response d002-p002-c002
+            tap:depth:2:candidate:d002-p002-c003:target: response d002-p002-c003
+          target_judge:
+            tap:depth:1:candidate:d001-p001-c001:target-judge: '{"score":4,"rationale":"retain first"}'
+            tap:depth:1:candidate:d001-p001-c002:target-judge: '{"score":6,"rationale":"retain best"}'
+            tap:depth:1:candidate:d001-p001-c003:target-judge: '{"score":2,"rationale":"prune"}'
+            tap:depth:2:candidate:d002-p001-c001:target-judge: '{"score":5,"rationale":"continue"}'
+            tap:depth:2:candidate:d002-p001-c002:target-judge: '{"score":4,"rationale":"continue"}'
+            tap:depth:2:candidate:d002-p001-c003:target-judge: '{"score":3,"rationale":"continue"}'
+            tap:depth:2:candidate:d002-p002-c001:target-judge: '{"score":2,"rationale":"prune"}'
+            tap:depth:2:candidate:d002-p002-c002:target-judge: '{"score":1,"rationale":"prune"}'
+            tap:depth:2:candidate:d002-p002-c003:target-judge: '{"score":8,"rationale":"threshold success"}'
+    selected_attempt_number: 1

@@ -1,9 +1,10 @@
 # Backend
 
-The backend is a dependency-light Python API and execution engine. Runtime code
-uses the Python standard library plus `cryptography` for the encrypted LLM
-profile vault. `psycopg[binary]` is used when PostgreSQL persistence, analysis
-queries, or the Postgres-backed profile vault are enabled.
+The backend is a Python API and execution engine. Runtime dependencies include
+`cryptography` for the encrypted LLM profile vault, `PyYAML` for technique
+packages, and `jsonschema` for package and parameter validation.
+`psycopg[binary]` is used when PostgreSQL persistence, analysis queries, or the
+Postgres-backed profile vault are enabled.
 
 ## Responsibilities
 
@@ -11,6 +12,8 @@ queries, or the Postgres-backed profile vault are enabled.
 - Maintain process-local run, evaluation, dataset, and experiment state in
   `app/api/store.py`.
 - Execute built-in and custom techniques through `app/execution/runner.py`.
+- Discover, validate, route, and execute source-controlled modular packages
+  through `app/techniques/` while retaining explicit legacy rollback.
 - Adapt demo and OpenAI-compatible live targets from `app/targets/`.
 - Persist runs, detections, conversations, traces, datasets, experiments, and
   custom techniques through `app/persistence/runs.py`.
@@ -34,6 +37,7 @@ backend/app/
 |-- profile_vault.py # Encrypted reusable LLM target profiles
 |-- reporting/    # Aggregate report builder
 |-- scoring/      # Detectors, refusal scoring, aggregate scoring
+|-- techniques/   # Contracts, packages, catalog/router, core, workflow, projection
 `-- targets/      # Demo, live chatbot, and live agent adapters
 ```
 
@@ -68,7 +72,22 @@ uv run --locked --extra dev --extra postgres python -m pytest tests
 uv run --locked --extra dev --extra postgres python -m compileall -q app
 ```
 
+Technique comparison tools live in `devtools/technique_parity/` and are used by
+the regression tests. From `backend/`, run
+`uv run --locked --extra dev python -m devtools.technique_parity --help` for CLI
+options. Developer tools are excluded from the application image.
+
 ## Adding Built-In Techniques
+
+New reviewed built-ins should use the source-controlled package contract in
+[`docs/technique-authoring.md`](../docs/technique-authoring.md). In brief, a
+strict manifest becomes an immutable catalog registration; the router pins a
+version/implementation and the runtime supplies controlled services to a
+bounded workflow or Python executor. Normalized evidence then feeds generic
+outcome/conversation/parity projection and the existing application,
+experiment, persistence, and frontend surfaces.
+
+The remaining static registry path is legacy compatibility:
 
 1. Add or update an `AttackTechnique` subclass under `app/attacklib/`.
 2. Register it in `app/attacklib/registry.py`.
@@ -80,6 +99,16 @@ uv run --locked --extra dev --extra postgres python -m compileall -q app
 
 Custom one-off techniques should usually go through the Dashboard custom
 technique builder instead of the built-in registry.
+
+Authenticated workspace package upload is not implemented. Do not treat the
+custom builder as the modular package installation API.
+
+The [architecture guide](../docs/architecture.md) describes execution,
+recovery, and provider limitations. Modular defaults are declared in
+`app/techniques/defaults.yaml`.
+Legacy implementations stay registered beside modular defaults so an
+experiment can pin `implementation_id: legacy` for data-only rollback without
+deleting historical calls, events, attempts, or results.
 
 ## Notes
 

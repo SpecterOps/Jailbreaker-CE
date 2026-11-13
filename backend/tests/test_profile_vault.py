@@ -134,14 +134,17 @@ def test_store_resolves_profile_ids_for_target_attacker_and_judge() -> None:
     assert resolved["api_key"] == "target-secret"
     assert resolved["api_base_url"] == "https://api.openai.com/v1"
     assert resolved["model"] == "target-model"
+    assert resolved["provider"] == "openai"
     assert resolved["system_prompt"] == "Target run prompt"
     assert resolved["attacker_api_key"] == "attacker-secret"
     assert resolved["attacker_api_base_url"] == "http://localhost:1234/v1"
     assert resolved["attacker_model"] == "attacker-model"
+    assert resolved["attacker_provider"] == "local"
     assert resolved["attacker_system_prompt"] == "Attacker run prompt"
     assert resolved["judge_api_key"] == "judge-secret"
     assert resolved["judge_api_base_url"] == "https://api.openai.com/v1"
     assert resolved["judge_model"] == "judge-model"
+    assert resolved["judge_provider"] == "openai"
     assert resolved["judge_system_prompt"] == "Judge run prompt"
 
 

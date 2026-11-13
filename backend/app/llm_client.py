@@ -18,6 +18,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Mapping, Sequence
 
+from app.techniques.core.models import ProviderCallResult, ProviderRequestContext
+
 log = logging.getLogger("llm_client")
 
 
@@ -74,6 +76,13 @@ def _make_ssl_context(url: str) -> ssl.SSLContext | None:
     return None
 
 
+def _header_int(headers: Mapping[str, str], key: str) -> int:
+    try:
+        return int(headers.get(key, "0"))
+    except (TypeError, ValueError):
+        return 0
+
+
 @dataclass(slots=True, frozen=True)
 class ChatCompletionResult:
     content: str
@@ -84,6 +93,8 @@ class ChatCompletionResult:
     finish_reason: str
     refusal: str | None
     tool_calls: tuple[dict, ...] = ()
+    provider_response_id: str | None = None
+    response_headers: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -152,6 +163,7 @@ class ChatClient:
         max_tokens: int | None = None,
         response_format: dict | None = None,
         extra_body: dict[str, object] | None = None,
+        _request_context: ProviderRequestContext | None = None,
     ) -> ChatCompletionResult:
         """Send messages and preserve the raw chat-completion response."""
         url = f"{self.api_base_url.rstrip('/')}/chat/completions"
@@ -182,6 +194,8 @@ class ChatClient:
             "Authorization": f"Bearer {self.api_key}",
             **self.extra_headers,
         }
+        if _request_context is not None:
+            headers.update(_request_context.litellm_headers())
 
         req = urllib.request.Request(url, data=body, headers=headers, method="POST")
         ssl_ctx = _make_ssl_context(url)
@@ -192,6 +206,10 @@ class ChatClient:
             with urllib.request.urlopen(req, timeout=90, context=ssl_ctx) as resp:
                 raw = resp.read().decode("utf-8")
                 data = json.loads(raw)
+                response_headers = {
+                    str(key).lower(): str(value)
+                    for key, value in getattr(resp, "headers", {}).items()
+                }
         except urllib.error.HTTPError as exc:
             error_body = exc.read().decode("utf-8", errors="replace")
             log.error("HTTP %d from %s: %s", exc.code, url, error_body[:500])
@@ -250,6 +268,55 @@ class ChatClient:
             finish_reason=str(choice.get("finish_reason", "")),
             refusal=refusal if isinstance(refusal, str) else None,
             tool_calls=tool_calls,
+            provider_response_id=(
+                str(data["id"])
+                if data.get("id") is not None
+                else None
+            ),
+            response_headers=response_headers,
+        )
+
+    def chat_correlated_once(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        request_context: ProviderRequestContext,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        response_format: dict | None = None,
+        extra_body: dict[str, object] | None = None,
+    ) -> ProviderCallResult:
+        """Make one owned dispatch without hidden retries."""
+
+        result = self.chat_raw(
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+            extra_body=extra_body,
+            _request_context=request_context,
+        )
+        gateway_call_id = None
+        gateway_attempts: dict[str, int] = {}
+        if request_context.litellm_headers():
+            gateway_call_id = result.response_headers.get("x-litellm-call-id")
+            gateway_attempts = {
+                "attempted_retries": _header_int(
+                    result.response_headers,
+                    "x-litellm-attempted-retries",
+                ),
+                "attempted_fallbacks": _header_int(
+                    result.response_headers,
+                    "x-litellm-attempted-fallbacks",
+                ),
+            }
+        return ProviderCallResult(
+            text=result.content,
+            usage=result.usage,
+            tool_calls=result.tool_calls,
+            provider_response_id=result.provider_response_id,
+            gateway_call_id=gateway_call_id,
+            gateway_attempts=gateway_attempts,
         )
 
     def chat_with_retry(

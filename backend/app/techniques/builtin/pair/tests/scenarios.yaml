@@ -1,0 +1,129 @@
+version: 1
+scenarios:
+  success:
+    intent: deterministic PAIR success intent
+    parameters:
+      max_rounds: 2
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - first partial response
+            - successful response
+          attacker:
+            - <PROMPT>first candidate</PROMPT>
+            - <PROMPT>second candidate</PROMPT>
+          target_judge:
+            - '{"score":2,"rationale":"continue"}'
+            - '{"score":8,"rationale":"succeeded"}'
+    selected_attempt_number: 1
+  maximum_rounds:
+    intent: deterministic PAIR maximum-round intent
+    parameters:
+      max_rounds: 2
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - first response
+            - final response
+          attacker:
+            - <PROMPT>first candidate</PROMPT>
+            - <PROMPT>second candidate</PROMPT>
+          target_judge:
+            - '{"score":2,"rationale":"continue"}'
+            - '{"score":4,"rationale":"not enough"}'
+    selected_attempt_number: 1
+  best_round_divergence:
+    intent: deterministic PAIR best-round intent
+    parameters:
+      max_rounds: 2
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - earlier higher-scoring response
+            - later lower-scoring response
+          attacker:
+            - <PROMPT>first candidate</PROMPT>
+            - <PROMPT>second candidate</PROMPT>
+          target_judge:
+            - '{"score":6,"rationale":"higher earlier score"}'
+            - '{"score":4,"rationale":"lower later score"}'
+    selected_attempt_number: 1
+  judge_disabled:
+    intent: deterministic PAIR judge-disabled intent
+    parameters:
+      max_rounds: 2
+      judge_per_round: false
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - first unjudged response
+            - second unjudged response
+          attacker:
+            - <PROMPT>first candidate</PROMPT>
+            - <PROMPT>second candidate</PROMPT>
+          target_judge: []
+    selected_attempt_number: 1
+  target_judge_zero:
+    intent: deterministic PAIR zero-score intent
+    parameters:
+      max_rounds: 1
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - zero-score response
+          attacker:
+            - <PROMPT>only candidate</PROMPT>
+          target_judge:
+            - '{"score":0,"rationale":"zero"}'
+    selected_attempt_number: 1
+  target_judge_zero_threshold:
+    intent: deterministic PAIR zero-score threshold intent
+    parameters:
+      max_rounds: 2
+      judge_threshold: 1
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - zero-score threshold response
+          attacker:
+            - <PROMPT>zero-score threshold candidate</PROMPT>
+          target_judge:
+            - '{"score":0,"rationale":"literal zero reaches legacy threshold"}'
+    selected_attempt_number: 1
+  target_judge_zero_then_one:
+    intent: deterministic PAIR zero-then-one intent
+    parameters:
+      max_rounds: 2
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - zero-score first response
+            - one-score second response
+          attacker:
+            - <PROMPT>zero-score first candidate</PROMPT>
+            - <PROMPT>one-score second candidate</PROMPT>
+          target_judge:
+            - '{"score":0,"rationale":"literal zero"}'
+            - '{"score":1,"rationale":"literal one"}'
+    selected_attempt_number: 1
+  target_judge_failure:
+    intent: deterministic PAIR judge-failure intent
+    parameters:
+      max_rounds: 1
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - unscored response
+          attacker:
+            - <PROMPT>only candidate</PROMPT>
+          target_judge:
+            - not valid judge JSON
+    selected_attempt_number: 1
