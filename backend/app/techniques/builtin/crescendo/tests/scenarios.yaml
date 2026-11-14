@@ -1,0 +1,114 @@
+version: 1
+scenarios:
+  success:
+    intent: deterministic success intent
+    parameters:
+      max_rounds: 2
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - adjacent response
+            - successful response
+          planner:
+            - '{"turn":"benign opener"}'
+            - '{"turn":"bridge question"}'
+          target_judge:
+            - '{"score":2,"rationale":"continue"}'
+            - '{"score":8,"rationale":"succeeded"}'
+    selected_attempt_number: 1
+  refusal_backtrack:
+    intent: deterministic refusal and retry intent
+    parameters:
+      max_rounds: 1
+      max_backtracks: 1
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - I cannot assist with that request
+            - continued response
+          planner:
+            - '{"turn":"refused question"}'
+            - '{"turn":"safer retry"}'
+          target_judge:
+            - '{"score":1,"rationale":"refused"}'
+            - '{"score":2,"rationale":"continued"}'
+    selected_attempt_number: 1
+  backtrack_cap:
+    intent: deterministic backtrack cap intent
+    parameters:
+      max_rounds: 1
+      max_backtracks: 1
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - I must decline that request
+            - I must decline that request again
+          planner:
+            - '{"turn":"first refused question"}'
+            - '{"turn":"second refused question"}'
+          target_judge:
+            - '{"score":1,"rationale":"first refusal"}'
+            - '{"score":1,"rationale":"second refusal"}'
+    selected_attempt_number: 1
+  target_judge_zero:
+    intent: deterministic literal zero score intent
+    parameters:
+      max_rounds: 1
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - zero-score response
+          planner:
+            - '{"turn":"only turn"}'
+          target_judge:
+            - '{"score":0,"rationale":"zero"}'
+    selected_attempt_number: 1
+  target_judge_failure:
+    intent: deterministic judge failure intent
+    parameters:
+      max_rounds: 1
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - unscored response
+          planner:
+            - '{"turn":"only turn"}'
+          target_judge:
+            - not valid judge JSON
+    selected_attempt_number: 1
+  empty_target_response:
+    intent: deterministic empty response intent
+    parameters:
+      max_rounds: 1
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - '   '
+          planner:
+            - '{"turn":"only turn"}'
+          target_judge:
+            - '{"score":0,"rationale":"empty"}'
+    selected_attempt_number: 1
+  outcome_best_round_divergence:
+    intent: deterministic best-round selection intent
+    parameters:
+      max_rounds: 2
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - earlier higher-scoring response
+            - latest lower-scoring response
+          planner:
+            - '{"turn":"first"}'
+            - '{"turn":"second"}'
+          target_judge:
+            - '{"score":6,"rationale":"higher earlier score"}'
+            - '{"score":4,"rationale":"lower latest score"}'
+    selected_attempt_number: 1

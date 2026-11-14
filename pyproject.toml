@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "Local offline LLM safety evaluation harness"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["cryptography>=42"]
+dependencies = ["cryptography>=42", "jsonschema>=4.23", "PyYAML>=6.0"]
 
 [project.optional-dependencies]
 postgres = ["psycopg[binary]>=3.1"]
@@ -20,6 +20,9 @@ extend-exclude = [".worktrees"]
 [tool.ruff.lint]
 select = ["E", "F"]
 ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/app/techniques/builtin/single_file_seeded_code_agent/workspace/main.py" = ["F401"]
 
 [tool.bandit]
 exclude_dirs = ["backend/tests", "frontend/tests", ".worktrees"]

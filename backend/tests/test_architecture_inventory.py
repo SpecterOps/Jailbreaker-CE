@@ -155,8 +155,14 @@ def test_build_architecture_artifact_merges_and_sorts_phase_outputs() -> None:
         technique="agent_architecture_enumeration",
         rounds=rounds,
     )
+    explicit_v1 = build_architecture_artifact(
+        technique="agent_architecture_enumeration",
+        rounds=rounds,
+        schema_version=ARCHITECTURE_SCHEMA_VERSION,
+    )
 
     assert artifact["schema_version"] == ARCHITECTURE_SCHEMA_VERSION
+    assert stable_json_dumps(explicit_v1) == stable_json_dumps(artifact)
     assert artifact["technique"] == "agent_architecture_enumeration"
     assert artifact["status"] == "mapped"
     assert artifact["quality"] == {

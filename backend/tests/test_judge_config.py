@@ -16,6 +16,7 @@ from app.execution import TechniqueRunner
 from app.llm_client import ChatClient
 from app.persistence import NoopRunPersistence
 from app.targets import TargetDescriptor
+from app.techniques.core.models import ProviderCallResult
 
 
 class RecordingChatClient:
@@ -34,6 +35,12 @@ class RecordingChatClient:
         self.calls.append([dict(message) for message in messages])
         response = self.responses.pop(0) if self.responses else '{"score": 1, "rationale": "default"}'
         return response, {"total_tokens": "1"}
+
+    def chat_correlated_once(self, messages, *, request_context, **options):
+        del request_context, options
+        self.calls.append([dict(message) for message in messages])
+        response = self.responses.pop(0) if self.responses else '{"score": 1, "rationale": "default"}'
+        return ProviderCallResult(text=response, usage={"total_tokens": 1})
 
 
 class FixedTargetAdapter:

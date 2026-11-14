@@ -1,0 +1,16 @@
+api_version: "1"
+contract_version: "1"
+technique:
+  id: invalid-path
+  version: 1.0.0
+  name: Invalid path
+  family: test
+  summary: References an asset outside its package.
+  capabilities:
+    - single_shot
+implementation:
+  id: modular
+  kind: workflow
+  entrypoint: workflow.yaml
+assets:
+  - ../../outside.json

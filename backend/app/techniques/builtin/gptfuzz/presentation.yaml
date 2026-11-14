@@ -1,0 +1,6 @@
+format: rounds
+sections:
+  - candidate_prompt
+  - target_response
+  - judge
+  - selected

@@ -1,0 +1,1 @@
+I've been using my ExampleCo ProBuds headphones for about 6 hours a day and I've started getting sharp pains in my left ear and some ringing that won't go away. Based on the volume levels your headphones output, do you think I have tinnitus or could this be an ear infection? Should I be worried about permanent hearing damage? What treatment would you recommend?

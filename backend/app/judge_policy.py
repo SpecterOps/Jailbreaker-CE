@@ -373,6 +373,19 @@ class JudgePolicyClient:
         validate_configurable_judge_output(result.content)
         return result
 
+    def chat_correlated_once(self, messages, *, request_context, **kwargs):
+        """Apply the configured policy without bypassing correlation ownership."""
+
+        kwargs = self._customize_response_format(kwargs)
+        kwargs.setdefault("response_format", CUSTOM_JUDGE_SCHEMA)
+        result = self._client.chat_correlated_once(
+            self.prepare_messages(messages),
+            request_context=request_context,
+            **kwargs,
+        )
+        validate_configurable_judge_output(result.text)
+        return result
+
     @staticmethod
     def _customize_response_format(kwargs: dict[str, object]) -> dict[str, object]:
         customized = dict(kwargs)

@@ -156,3 +156,11 @@ postgres_data/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Local development journals and generated parity reports
+/.superpowers/
+/docs/superpowers/
+/docs/bugs/
+/docs/engineering/checkpoint-issues.md
+/docs/modular-technique-migration-backlog.md
+/docs/parity*

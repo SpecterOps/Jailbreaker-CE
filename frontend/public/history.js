@@ -1,4 +1,7 @@
 import { domElement } from "./components/dom.js";
+import {
+  renderCanonicalTreeBranch,
+} from "./components/conversation-evidence.js";
 import { mountSidebarNav } from "./components/sidebar-nav.js";
 import { mountVaultControl } from "./components/vault-control.js";
 
@@ -393,13 +396,49 @@ function renderDetections(detections) {
 
 function renderConversation(conversation) {
   return conversation.map((entry, index) => {
-    const node = domElement("div", "history-evidence-row");
-    node.append(
-      domElement("strong", "", `${index + 1}. ${entry.kind || "entry"}`),
-      domElement("pre", "history-detail-pre", JSON.stringify(entry, null, 2)),
-    );
-    return node;
+    if (entry.kind === "round") return renderRawConversationEntry(entry, index);
+    if (entry.kind === "generation") return renderRawConversationEntry(entry, index);
+    if (entry.kind === "tree") return renderConversationTree(entry, index);
+    if (entry.kind === "single_shot") return renderRawConversationEntry(entry, index);
+    if (entry.kind === "raw") return renderRawConversationEntry(entry, index);
+    return renderRawConversationEntry(entry, index);
   });
+}
+
+function renderConversationTree(entry, index) {
+  const node = domElement("div", "history-evidence-row");
+  const branches = Array.isArray(entry.branches) ? entry.branches : [];
+  node.append(domElement("strong", "", `${index + 1}. tree depth ${entry.depth ?? "?"}`));
+  for (const branch of branches) {
+    node.append(renderCanonicalTreeBranch(branch, {
+      createElement: domElement,
+      itemClass: "history-tree-branch",
+      headerClass: "history-tree-branch-header",
+      metadataClass: "history-tree-branch-provenance",
+      renderPrompt: (value) => domElement("p", "", value),
+      renderResponse: (value) => domElement("pre", "history-detail-pre", value),
+      renderJudge: (judge) => domElement(
+        "span",
+        "history-tree-branch-judge",
+        judge.error
+          ? `Judge error: ${judge.error}`
+          : [
+              `Judge: ${judge.score}/10`,
+              judge.rationale || judge.output || "",
+            ].filter(Boolean).join(" · "),
+      ),
+    }));
+  }
+  return node;
+}
+
+function renderRawConversationEntry(entry, index) {
+  const node = domElement("div", "history-evidence-row");
+  node.append(
+    domElement("strong", "", `${index + 1}. ${entry.kind || "entry"}`),
+    domElement("pre", "history-detail-pre", JSON.stringify(entry, null, 2)),
+  );
+  return node;
 }
 
 function renderTraces(traces) {

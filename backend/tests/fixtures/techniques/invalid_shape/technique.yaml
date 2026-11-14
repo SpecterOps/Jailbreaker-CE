@@ -1,0 +1,15 @@
+api_version: "1"
+contract_version: "1"
+technique:
+  id: invalid-shape
+  version: 1.0.0
+  name: Invalid shape
+  family: test
+  summary: Contains an unknown identity field.
+  capabilities:
+    - single_shot
+  mystery_field: rejected
+implementation:
+  id: modular
+  kind: workflow
+  entrypoint: workflow.yaml

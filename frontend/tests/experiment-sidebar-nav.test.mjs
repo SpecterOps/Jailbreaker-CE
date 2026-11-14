@@ -201,14 +201,61 @@ test("experiments use the shared configurable judge policy", () => {
   assert.match(script, /configuredJudgePolicy/, "experiments should serialize non-standard Judge policies");
   assert.match(script, /judge_policy: judgePolicy/, "experiment target config should include configured Judge criteria");
   assert.match(script, /judgePolicyControl\.validationMessage/, "experiments should validate Judge criteria before starting");
-  assert.match(script, /retryJudgePolicyControl\.setPolicy\(targetConfig\.judge_policy \|\| \{\}\)/, "retry should display the experiment's Judge policy");
-  assert.match(script, /configuredJudgePolicy\(retryJudgePolicyControl\.getPolicy\(\)\)/, "retry should serialize the reviewed Judge policy");
-  assert.match(script, /retryJudgePolicyControl\.validationMessage\(\)/, "retry should validate edited Judge criteria");
-  assert.match(script, /id = "retry-judge-policy-summary-root"/, "retry dialog should mount a policy summary");
-  assert.match(script, /id = "retry-judge-policy-editor-root"/, "retry dialog should mount a policy editor");
+  assert.doesNotMatch(script, /retryJudgePolicyControl/, "retry must not edit the pinned Judge policy");
+  assert.doesNotMatch(script, /retry-judge-policy-(?:summary|editor)-root/, "retry must not mount behavioral policy editors");
   assert.match(judgePolicyControl, /Success looks like/, "shared control should expose outcome success criteria");
   assert.match(judgePolicyControl, /Failure looks like/, "shared control should expose outcome failure criteria");
   assert.match(judgePolicyControl, /Complete rubric/, "shared control should expose the advanced rubric");
+});
+
+test("experiments modal owns and safely renders immutable attempt history", () => {
+  assert.match(script, /attemptHistoryRequestToken/, "attempt history should use a monotonically increasing owner token");
+  assert.match(
+    script,
+    /`\/api\/experiments\/\$\{encodeURIComponent\(experimentId\)\}\/cells\/\$\{encodeURIComponent\(cellId\)\}\/attempts`/,
+    "attempt history should encode opaque experiment and cell ids",
+  );
+  assert.match(script, /requestToken !== attemptHistoryRequestToken/, "stale attempt responses must not update a newer modal");
+  for (const field of [
+    "attempt_count",
+    "selected_attempt_id",
+    "attempt_number",
+    "retry_kind",
+    "execution_status",
+    "result_disposition",
+    "failure_category",
+    "run_id",
+    "created_at",
+    "started_at",
+    "completed_at",
+    "late_completion",
+  ]) {
+    assert.match(script, new RegExp(field), `attempt history should render ${field}`);
+  }
+  assert.match(script, /attempt\.score \?\? "n\/a"/, "a tested zero score must render as zero");
+  assert.doesNotMatch(script, /\.innerHTML\b/, "attempt rendering must not introduce an HTML injection sink");
+});
+
+test("experiments retry submits credentials against the immutable batch contract", () => {
+  assert.match(script, /\/retry-batches`/, "retry should use the immutable retry-batch endpoint");
+  assert.match(script, /action:\s*"restart"/, "retry should request a restart");
+  assert.match(script, /completed_policy:\s*"exclude"/, "retry should retain valid completed cells");
+  assert.match(script, /credential_overrides:\s*credentialOverrides/, "retry should send only transient credential overrides");
+  assert.match(script, /request_id:\s*retryRequestId\(\)/, "retry should include an idempotency request id");
+  assert.match(script, /pinned experiment plan/, "retry should explain immutable model and behavior ownership");
+  for (const removedId of [
+    "retry-model",
+    "retry-base-url",
+    "retry-system-prompt",
+    "retry-attacker-model",
+    "retry-attacker-base-url",
+    "retry-judge-model",
+    "retry-judge-base-url",
+    "retry-judge-mode",
+    "retry-judge-local",
+  ]) {
+    assert.doesNotMatch(script, new RegExp(removedId), `${removedId} must not remain editable during retry`);
+  }
 });
 
 test("experiments profile selectors render options without innerHTML", () => {

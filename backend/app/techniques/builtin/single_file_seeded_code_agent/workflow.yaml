@@ -1,0 +1,95 @@
+version: 1
+start: materialize_inputs
+max_step_visits: 30
+steps:
+  - id: materialize_inputs
+    type: input_materialize
+    output: materialized_inputs
+    next: select_seed_code
+  - id: select_seed_code
+    type: branch
+    branches:
+      - condition:
+          path: materialized_inputs.seed_code
+          operator: truthy
+        next: trim_supplied_seed_code
+      - next: render_default_seed_code
+  - id: trim_supplied_seed_code
+    type: transform
+    options:
+      source: materialized_inputs.seed_code
+      kind: strip
+      output: trimmed_seed_code
+    next: select_trimmed_seed_code
+  - id: select_trimmed_seed_code
+    type: branch
+    branches:
+      - condition:
+          path: trimmed_seed_code.value
+          operator: truthy
+        next: render_supplied_workspace
+      - next: render_default_seed_code
+  - id: render_supplied_workspace
+    type: render
+    options:
+      template_asset: prompts/workspace-boundary.md
+      fields:
+        seed_code: trimmed_seed_code.value
+      strip_trailing_newline: true
+      output: workspace_block
+    next: render_prompt
+  - id: render_default_seed_code
+    type: render
+    options:
+      template_asset: workspace/main.py
+      fields: {}
+      output: default_seed_code
+    next: render_default_workspace
+  - id: render_default_workspace
+    type: render
+    options:
+      template_asset: prompts/workspace-boundary.md
+      fields:
+        seed_code: default_seed_code
+      strip_trailing_newline: true
+      output: workspace_block
+    next: render_prompt
+  - id: render_prompt
+    type: render
+    options:
+      template_asset: prompts/prompt.md
+      fields:
+        intent: materialized_inputs.intent
+      output: rendered_prompt
+    next: combine_prompt_workspace
+  - id: combine_prompt_workspace
+    type: render
+    options:
+      template: "{prompt}\n\n{workspace}"
+      fields:
+        prompt: rendered_prompt
+        workspace: workspace_block
+      output: target_prompt
+    next: call_target
+  - id: call_target
+    type: target_call
+    options:
+      messages:
+        - role: user
+          content_from: values.target_prompt
+      output: target_response
+      append_to_history: audit_history
+    next: judge_target
+  - id: judge_target
+    type: judge
+    definition_id: target_judge
+    evidence:
+      intent_from: inputs.intent
+      response_from: values.target_response
+    output: target_judge
+    next: finish
+  - id: finish
+    type: finish
+    final_response_from: values.target_response
+    official_judge_from: values.target_judge
+    success_threshold: 7

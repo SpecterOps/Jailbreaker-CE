@@ -1,0 +1,9 @@
+version: 1
+conversation_format: generation
+histories:
+  audit: audit_history
+sections:
+  - generations
+  - candidates
+  - selected_candidate
+  - target_judge

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "chunk_size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 50
+    },
+    "max_rounds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 5
+    },
+    "judge_threshold": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 7
+    }
+  }
+}

@@ -10,6 +10,7 @@ from app.attacklib.iterative import run_crescendo_liar_loop
 from app.evaluation.models import DetectionType, TargetKind, TargetResponse
 from app.execution import TechniqueRunner
 from app.scoring.detectors import run_detector
+from app.techniques import build_default_catalog
 
 
 class FakeChatClient:
@@ -36,6 +37,14 @@ def test_registry_contains_only_public_technique_keys() -> None:
     assert len(techniques) == 41
     assert len(ATTACK_REGISTRY) == 41
     assert set(ATTACK_REGISTRY) == {technique.metadata.key for technique in techniques}
+
+
+def test_modular_catalog_legacy_inventory_matches_public_registry() -> None:
+    catalog = build_default_catalog(discover_modular=False)
+
+    assert {
+        item.definition.identity.id for item in catalog.list_definitions()
+    } == set(ATTACK_REGISTRY)
 
 
 def test_crescendo_liar_loop_exposes_only_public_parameters() -> None:

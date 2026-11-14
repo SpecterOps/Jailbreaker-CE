@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "poisoning_ratio": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.3
+    },
+    "max_rounds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 5
+    },
+    "judge_threshold": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 7
+    },
+    "max_backtracks": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 20,
+      "default": 3
+    },
+    "judge_per_round": {
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

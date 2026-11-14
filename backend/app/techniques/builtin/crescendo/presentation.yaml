@@ -1,0 +1,10 @@
+version: 1
+conversation_format: rounds
+histories:
+  audit: audit_history
+  target: target_history
+  planner: planner_history
+sections:
+  - rounds
+  - real_target_response
+  - target_judge

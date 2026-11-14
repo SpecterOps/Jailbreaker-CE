@@ -1,0 +1,9 @@
+version: 1
+conversation_format: rounds
+histories:
+  target: target_history
+  audit: target_history
+sections:
+  - setup_phase
+  - request_phase
+  - target_judge

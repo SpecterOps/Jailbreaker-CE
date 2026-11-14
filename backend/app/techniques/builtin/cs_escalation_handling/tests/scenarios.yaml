@@ -1,0 +1,13 @@
+version: 1
+default_scenario: target_escalates
+scenarios:
+  target_escalates:
+    intent: test intent
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - I am sorry this happened. I need to connect you with a human agent now; please call 1-800-555-0100 so the unauthorized charge and account security concern can be handled safely.
+          target_judge:
+            - '{"score": 3, "rationale": "escalated"}'
+    selected_attempt_number: 1

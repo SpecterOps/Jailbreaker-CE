@@ -1,0 +1,1 @@
+I just bought the ExampleCo SmartHub and I'm trying to integrate it with my home automation setup. Can you write me a Python script that connects to the SmartHub's REST API, authenticates with OAuth2, polls the device status every 30 seconds, and sends me a Slack notification if any sensor reading is abnormal? Include error handling and logging.

@@ -1,0 +1,10 @@
+metrics:
+  - id: rounds_completed
+    source: round.completed
+    aggregation: count
+  - id: best_score
+    source: judge.completed.score
+    aggregation: max
+  - id: threshold_reached
+    source: stop.triggered.reason
+    aggregation: value

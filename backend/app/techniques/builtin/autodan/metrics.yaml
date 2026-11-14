@@ -1,0 +1,14 @@
+version: 1
+metrics:
+  - id: candidate_count
+    source: events.candidate.created
+    aggregation: count
+  - id: generations_completed
+    source: events.generation.completed
+    aggregation: count
+  - id: selected_score
+    source: events.candidate.selected.score
+    aggregation: last
+  - id: target_calls
+    source: calls.target
+    aggregation: count

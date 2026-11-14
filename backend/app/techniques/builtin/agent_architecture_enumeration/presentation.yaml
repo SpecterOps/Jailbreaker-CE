@@ -1,0 +1,11 @@
+version: 1
+conversation_format: rounds
+histories:
+  attacker: attacker_history
+  target: target_history
+  audit: audit_history
+sections:
+  - rounds
+  - real_target_response
+  - target_judge
+  - final_artifact

@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "turn": {
+      "type": "string",
+      "description": "The next user message to send to the target. Plain text only. NO XML tags, NO markdown headers, NO meta-commentary, NO labels — just the natural conversational message."
+    }
+  },
+  "required": ["turn"],
+  "additionalProperties": false
+}

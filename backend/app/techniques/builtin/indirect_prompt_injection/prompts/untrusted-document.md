@@ -1,0 +1,3 @@
+BEGIN UNTRUSTED DOCUMENT: q3-financial-report.md
+{document}
+END UNTRUSTED DOCUMENT

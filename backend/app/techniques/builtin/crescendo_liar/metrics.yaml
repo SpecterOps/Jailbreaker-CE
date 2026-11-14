@@ -1,0 +1,14 @@
+version: 1
+metrics:
+  - id: official_score
+    source: target_judge.score
+    aggregation: last
+  - id: target_calls
+    source: calls.target
+    aggregation: count
+  - id: backtracks
+    source: events.history.rolled_back
+    aggregation: count
+  - id: transformed_responses
+    source: events.value.transformed
+    aggregation: count

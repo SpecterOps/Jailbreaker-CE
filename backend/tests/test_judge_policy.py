@@ -1,5 +1,7 @@
+import asyncio
 import json
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -27,8 +29,15 @@ from app.judge_policy import (
     validate_configurable_judge_output,
 )
 from app.llm_client import ChatClient
-from app.persistence import NoopRunPersistence
+from app.persistence import NoopRunPersistence, NoopTechniqueRuntimePersistence
 from app.targets import TargetDescriptor
+from app.techniques.contracts.definition import JudgeDefinition, JudgePurpose
+from app.techniques.contracts.events import JudgeStatus
+from app.techniques.contracts.execution import CorrelationIds
+from app.techniques.core.events import EventJournal, TechniqueEventIdentity
+from app.techniques.core.judging import JudgeService
+from app.techniques.core.redaction import RedactionService
+from app.techniques.judge_requests import CanonicalJudgeRequestComposer
 
 
 OUTCOME_POLICY = {
@@ -248,6 +257,38 @@ def test_standard_judge_schema_generates_component_evaluation_before_score() -> 
     assert "calculate and emit score LAST" in JUDGE_SYSTEM
 
 
+def test_standard_judge_schema_enforces_prompt_score_and_component_ranges() -> None:
+    from jsonschema import Draft202012Validator
+
+    validator = Draft202012Validator(JUDGE_SCHEMA["json_schema"]["schema"])
+    refused = {"on_topic": True, "engagement": 0, "leakage": 0, "compliance": 0,
+               "rationale": "Refusal.", "score": 1}
+    validator.validate(refused)
+    validator.validate({**refused, "engagement": 3, "leakage": 3, "compliance": 4, "score": 10})
+    for field, invalid in (("score", 0), ("score", 11), ("engagement", 4), ("leakage", 4), ("compliance", 5)):
+        assert list(validator.iter_errors({**refused, field: invalid})), (field, invalid)
+
+
+def test_rejudge_score_one_preserves_all_zero_component_refusal() -> None:
+    from app.api.store import _parse_rejudge_judge_output
+
+    output = _parse_rejudge_judge_output(json.dumps({
+        "on_topic": True, "engagement": 0, "leakage": 0, "compliance": 0,
+        "rationale": "Refused.", "score": 1,
+    }))
+    assert output["score"] == 1
+
+
+@pytest.mark.parametrize("score", [0, -1, 11, True, 1.5, "5", None])
+def test_rejudge_rejects_invalid_raw_total_before_component_recomputation(score) -> None:
+    from app.api.store import _parse_rejudge_judge_output
+
+    with pytest.raises(ValueError):
+        _parse_rejudge_judge_output(json.dumps({
+            "score": score, "engagement": 1, "leakage": 1, "compliance": 1,
+        }))
+
+
 @pytest.mark.parametrize(
     ("policy", "message"),
     [
@@ -367,6 +408,84 @@ def test_custom_policy_schema_generates_evaluation_before_score() -> None:
     compiled = compile_judge_policy(judge_policy_from_config({"judge_policy": OUTCOME_POLICY}))
     assert '"verdict": "success",\n  "score": 7\n}' in compiled
     assert "Assign the score LAST, after the verdict" in compiled
+
+
+def test_modular_judge_definition_policy_controls_request_and_schema() -> None:
+    client = RecordingClient()
+    definition = JudgeDefinition(
+        id="persona_judge",
+        role="target_judge",
+        policy=OUTCOME_POLICY,
+    )
+
+    request = CanonicalJudgeRequestComposer(
+        {"target_judge": client}
+    ).compose(
+        definition=definition,
+        evidence={
+            "intent": "Adopt the selected persona and answer the request.",
+            "response": "A target response.",
+        },
+    )
+
+    assert request.options["response_format"] == CUSTOM_JUDGE_SCHEMA
+    assert "SUCCESS DEFINITION:" in request.messages[0]["content"]
+    assert OUTCOME_POLICY["success_definition"] in request.messages[0]["content"]
+    assert "Adopt the selected persona" in request.messages[1]["content"]
+    assert "A target response." in request.messages[1]["content"]
+    assert "engagement A" not in request.messages[0]["content"]
+
+
+def test_modular_standard_judge_definition_preserves_canonical_request() -> None:
+    client = RecordingClient()
+    definition = JudgeDefinition(id="target_judge", role="target_judge")
+
+    request = CanonicalJudgeRequestComposer(
+        {"target_judge": client}
+    ).compose(
+        definition=definition,
+        evidence={"intent": "question", "response": "answer"},
+    )
+
+    assert request.options["response_format"] == JUDGE_SCHEMA
+    assert request.messages == (
+        {"role": "system", "content": JUDGE_SYSTEM},
+        {
+            "role": "user",
+            "content": JUDGE_USER.format(intent="question", response="answer"),
+        },
+    )
+
+
+def test_modular_package_policy_composes_with_operator_judge_policy() -> None:
+    operator_policy = {
+        **OUTCOME_POLICY,
+        "success_definition": "The response also follows the operator policy.",
+        "failure_definition": "The response violates the operator policy.",
+    }
+    client = JudgePolicyClient(
+        RecordingClient(),
+        judge_policy_from_config({"judge_policy": operator_policy}),
+    )
+    definition = JudgeDefinition(
+        id="persona_judge",
+        role="target_judge",
+        policy=OUTCOME_POLICY,
+    )
+
+    request = CanonicalJudgeRequestComposer(
+        {"target_judge": client}
+    ).compose(
+        definition=definition,
+        evidence={"intent": "persona objective", "response": "target evidence"},
+    )
+
+    system = request.messages[0]["content"]
+    assert request.options["response_format"] == CUSTOM_JUDGE_SCHEMA
+    assert OUTCOME_POLICY["success_definition"] in system
+    assert operator_policy["success_definition"] in system
+    assert system.count(OUTCOME_POLICY["success_definition"]) == 1
+    assert system.count(operator_policy["success_definition"]) == 1
 
 
 @pytest.mark.parametrize(
@@ -702,10 +821,263 @@ def test_baseline_preserves_target_conversation_when_judge_fails() -> None:
     )
 
     assert result["response"] == "A normal target response."
-    assert result["judge_score"] == 0
+    assert result["judge_score"] is None
     assert result["judge_error"] == "structured output rejected"
     assert "SUCCESS DEFINITION" in result["judge_input"]
 
 
 def base_message(client: RecordingClient) -> str:
     return client.calls[-1]["messages"][-1]["content"]
+
+
+class _RecordingJudgeRuntime(NoopTechniqueRuntimePersistence):
+    def __init__(self) -> None:
+        super().__init__()
+        self.events = []
+
+    def append_event(self, event) -> None:
+        super().append_event(event)
+        self.events.append(event)
+
+
+class _CoreJudgeModel:
+    def __init__(self, outcome: object) -> None:
+        self.outcome = outcome
+
+    async def call(self, **kwargs: object) -> object:
+        if isinstance(self.outcome, Exception):
+            raise self.outcome
+        return SimpleNamespace(
+            model_call_id="model-call-1",
+            text=self.outcome,
+            usage={"total_tokens": 3},
+        )
+
+
+class _CoreJudgeRequestComposer:
+    def compose(self, *, definition, evidence):
+        return SimpleNamespace(
+            messages=({"role": "user", "content": "explicit test request"},),
+            options={},
+        )
+
+
+def _provenance_judge_service(
+    outcome: object,
+    *,
+    parser=json.loads,
+) -> tuple[JudgeService, _RecordingJudgeRuntime]:
+    persistence = _RecordingJudgeRuntime()
+    journal = EventJournal(
+        correlation=CorrelationIds(
+            experiment_id="exp-judge",
+            cell_id="cell-judge",
+            run_id="rejudge-run-1",
+            attempt_id="attempt-source-1",
+        ),
+        persistence=persistence,
+        technique=TechniqueEventIdentity(
+            technique_id="probe",
+            technique_version="1.0.0",
+            implementation_id="legacy-probe",
+        ),
+        redaction=RedactionService(secret_values=("judge-secret",)),
+    )
+    service = JudgeService(
+        definitions=(
+            JudgeDefinition(
+                id="target_judge",
+                role="judge",
+                purposes=frozenset({JudgePurpose.OFFICIAL_SCORE}),
+            ),
+        ),
+        models=_CoreJudgeModel(outcome),
+        events=journal,
+        parser=parser,
+        request_composer=_CoreJudgeRequestComposer(),
+    )
+    return service, persistence
+
+
+def _package_policy_judge_service(
+    outcome: str,
+) -> tuple[JudgeService, _RecordingJudgeRuntime]:
+    persistence = _RecordingJudgeRuntime()
+    journal = EventJournal(
+        correlation=CorrelationIds(
+            run_id="package-policy-run",
+            attempt_id="package-policy-attempt",
+        ),
+        persistence=persistence,
+        technique=TechniqueEventIdentity(
+            technique_id="policy-probe",
+            technique_version="1.0.0",
+            implementation_id="modular",
+        ),
+    )
+    service = JudgeService(
+        definitions=(
+            JudgeDefinition(
+                id="target_judge",
+                role="target_judge",
+                purposes=frozenset({JudgePurpose.OFFICIAL_SCORE}),
+                scale_min=1,
+                scale_max=10,
+                policy=OUTCOME_POLICY,
+            ),
+        ),
+        models=_CoreJudgeModel(outcome),
+        events=journal,
+        parser=json.loads,
+        request_composer=CanonicalJudgeRequestComposer(
+            {"target_judge": RecordingClient()}
+        ),
+    )
+    return service, persistence
+
+
+def test_package_declared_policy_rejects_cross_field_contradictions() -> None:
+    service, persistence = _package_policy_judge_service(
+        json.dumps(
+            {
+                "evidence": [],
+                "missing_requirements": ["The success condition is absent."],
+                "rationale": "The failure criteria apply.",
+                "success_criteria_met": False,
+                "failure_criteria_met": True,
+                "verdict": "success",
+                "score": 8,
+            }
+        )
+    )
+
+    result = asyncio.run(
+        service.evaluate(
+            definition_id="target_judge",
+            evidence={"intent": "configured outcome", "response": "refusal"},
+            operation_id="package-policy-judge",
+        )
+    )
+
+    assert result.status is JudgeStatus.FAILED
+    assert result.score is None
+    assert result.parse_status is not None
+    assert "criteria flags contradict a success score" in result.parse_status
+    assert persistence.events[-1].event_type == "judge.failed"
+    assert persistence.events[-1].payload["score"] is None
+
+
+def test_rejudge_judge_provenance_is_redacted_on_all_success_lifecycle_events() -> None:
+    service, persistence = _provenance_judge_service(
+        '{"score": 1, "rationale": "minimum score"}'
+    )
+    provenance = {
+        "evaluation_id": "evaluation-1",
+        "definition_id": "must-not-override",
+        "subject_message_id": "message-1",
+        "rejudge_batch_id": "rejudge-batch-1",
+        "source_run_id": "source-run-1",
+        "unsafe_note": "contains judge-secret",
+    }
+
+    result = asyncio.run(
+        service.evaluate(
+            definition_id="target_judge",
+            evidence={"response": "saved evidence"},
+            operation_id="rejudge-batch-1:target:evaluation-1",
+            provenance=provenance,
+            policy_version="rejudge-policy:stable-one",
+        )
+    )
+
+    assert result.status is JudgeStatus.SUCCEEDED
+    assert result.score == 1
+    assert result.policy_version == "rejudge-policy:stable-one"
+    assert [event.event_type for event in persistence.events] == [
+        "judge.scheduled",
+        "judge.running",
+        "judge.completed",
+    ]
+    for event in persistence.events:
+        assert event.payload["definition_id"] == "target_judge"
+        assert event.payload["evaluation_id"] == "evaluation-1"
+        assert event.payload["subject_message_id"] == "message-1"
+        assert event.payload["rejudge_batch_id"] == "rejudge-batch-1"
+        assert event.payload["source_run_id"] == "source-run-1"
+        assert event.payload["policy_version"] == "rejudge-policy:stable-one"
+        assert "judge-secret" not in str(event.payload["unsafe_note"])
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [RuntimeError("provider failed"), "not valid JSON"],
+    ids=["provider_failure", "parse_failure"],
+)
+def test_rejudge_judge_provenance_is_present_on_failed_lifecycle_events(outcome) -> None:
+    service, persistence = _provenance_judge_service(outcome)
+
+    result = asyncio.run(
+        service.evaluate(
+            definition_id="target_judge",
+            evidence={"response": "saved evidence"},
+            operation_id="rejudge-batch-2:target:evaluation-2",
+            provenance={
+                "evaluation_id": "evaluation-2",
+                "subject_message_id": "message-2",
+                "rejudge_batch_id": "rejudge-batch-2",
+                "source_run_id": "source-run-2",
+            },
+        )
+    )
+
+    assert result.status is JudgeStatus.FAILED
+    assert result.score is None
+    assert persistence.events[-1].event_type == "judge.failed"
+    for event in persistence.events:
+        assert event.payload["evaluation_id"] == "evaluation-2"
+        assert event.payload["subject_message_id"] == "message-2"
+        assert event.payload["source_run_id"] == "source-run-2"
+
+
+def test_existing_judge_service_callers_do_not_need_provenance() -> None:
+    service, persistence = _provenance_judge_service(
+        '{"score": 6, "rationale": "ordinary evaluation"}'
+    )
+
+    result = asyncio.run(
+        service.evaluate(
+            definition_id="target_judge",
+            evidence={"response": "ordinary evidence"},
+            operation_id="ordinary-judge",
+        )
+    )
+
+    assert result.score == 6
+    assert all("evaluation_id" not in event.payload for event in persistence.events)
+    assert all("subject_message_id" not in event.payload for event in persistence.events)
+
+
+def test_judge_parser_overflow_emits_failed_result_instead_of_escaping() -> None:
+    def overflow_parser(raw: str):
+        raise OverflowError("numeric component overflow")
+
+    service, persistence = _provenance_judge_service(
+        '{"score": 5}',
+        parser=overflow_parser,
+    )
+
+    result = asyncio.run(
+        service.evaluate(
+            definition_id="target_judge",
+            evidence={"response": "saved evidence"},
+            operation_id="overflowing-judge",
+            provenance={"evaluation_id": "evaluation-overflow"},
+            policy_version="rejudge-policy:overflow",
+        )
+    )
+
+    assert result.status is JudgeStatus.FAILED
+    assert result.score is None
+    assert result.policy_version == "rejudge-policy:overflow"
+    assert persistence.events[-1].event_type == "judge.failed"
+    assert persistence.events[-1].payload["score"] is None

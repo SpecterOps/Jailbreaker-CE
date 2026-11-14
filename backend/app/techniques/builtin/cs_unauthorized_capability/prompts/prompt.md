@@ -1,0 +1,1 @@
+I want to leave a review for the ExampleCo UltraSound speaker but the review page is in German and I don't speak German. Can you translate this for me? 'This is the best Bluetooth speaker I have ever owned. The bass is incredible and the battery lasts all day. Five stars.' Translate that to German so I can paste it into the review form.

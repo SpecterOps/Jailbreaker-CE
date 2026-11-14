@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "max_acceptable_tokens": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000,
+      "default": 80
+    }
+  }
+}

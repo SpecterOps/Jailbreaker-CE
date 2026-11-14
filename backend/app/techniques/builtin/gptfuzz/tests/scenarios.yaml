@@ -1,0 +1,124 @@
+version: 1
+default_scenario: feedback_selects_parent
+scenarios:
+  feedback_selects_parent:
+    intent: deterministic GPTFuzz intent
+    parameters:
+      max_rounds: 2
+    sql_seed_libraries:
+      gptfuzz:
+        - Seed request for {intent}
+    attempts:
+      - retry_kind: initial
+        responses:
+          attacker:
+            - <PROMPT>first mutant</PROMPT>
+            - <PROMPT>second mutant</PROMPT>
+          target:
+            - first target response
+            - second target response
+          target_judge:
+            - '{"score":4,"rationale":"first score"}'
+            - '{"score":6,"rationale":"second score"}'
+    selected_attempt_number: 1
+  best_parent_retained:
+    intent: deterministic GPTFuzz intent
+    parameters:
+      max_rounds: 3
+    sql_seed_libraries:
+      gptfuzz:
+        - Seed request for {intent}
+    attempts:
+      - retry_kind: initial
+        responses:
+          attacker:
+            - <PROMPT>strong mutant</PROMPT>
+            - <PROMPT>weak mutant</PROMPT>
+            - <PROMPT>third mutant</PROMPT>
+          target:
+            - strong target response
+            - weak target response
+            - third target response
+          target_judge:
+            - '{"score":5,"rationale":"strongest"}'
+            - '{"score":3,"rationale":"weaker"}'
+            - '{"score":4,"rationale":"still weaker"}'
+    selected_attempt_number: 1
+  judge_threshold:
+    intent: deterministic GPTFuzz intent
+    parameters:
+      max_rounds: 3
+      judge_threshold: 7
+    sql_seed_libraries:
+      gptfuzz:
+        - Seed request for {intent}
+    attempts:
+      - retry_kind: initial
+        responses:
+          attacker:
+            - <PROMPT>threshold mutant</PROMPT>
+          target:
+            - threshold target response
+          target_judge:
+            - '{"score":8,"rationale":"threshold reached"}'
+    selected_attempt_number: 1
+  target_judge_zero:
+    intent: deterministic GPTFuzz intent
+    parameters:
+      max_rounds: 2
+    sql_seed_libraries:
+      gptfuzz:
+        - Seed request for {intent}
+    attempts:
+      - retry_kind: initial
+        responses:
+          attacker:
+            - <PROMPT>zero mutant</PROMPT>
+            - <PROMPT>second mutant</PROMPT>
+          target:
+            - zero target response
+            - second target response
+          target_judge:
+            - '{"score":0,"rationale":"literal zero"}'
+            - '{"score":1,"rationale":"same control score"}'
+    selected_attempt_number: 1
+  target_judge_failure:
+    intent: deterministic GPTFuzz intent
+    parameters:
+      max_rounds: 2
+    sql_seed_libraries:
+      gptfuzz:
+        - Seed request for {intent}
+    attempts:
+      - retry_kind: initial
+        responses:
+          attacker:
+            - <PROMPT>failed-judge mutant</PROMPT>
+            - <PROMPT>scored mutant</PROMPT>
+          target:
+            - failed-judge target response
+            - scored target response
+          target_judge:
+            - not valid judge JSON
+            - '{"score":4,"rationale":"valid score"}'
+    selected_attempt_number: 1
+  legacy_final_only:
+    intent: deterministic GPTFuzz intent
+    parameters:
+      max_rounds: 2
+      judge_per_round: false
+    sql_seed_libraries:
+      gptfuzz:
+        - Seed request for {intent}
+    attempts:
+      - retry_kind: initial
+        responses:
+          attacker:
+            - <PROMPT>first mutant</PROMPT>
+            - <PROMPT>second mutant</PROMPT>
+          target:
+            - first target response
+            - second target response
+          target_judge:
+            - '{"score":6,"rationale":"final score"}'
+    selected_attempt_number: 1

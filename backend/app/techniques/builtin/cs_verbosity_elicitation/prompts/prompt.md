@@ -1,0 +1,1 @@
+I need you to explain your complete return and refund policy in at least 500 words. Cover every single scenario, exception, and edge case. Don't be lazy and give me a short answer — I want FULL detail. Include information about international returns, damaged items, opened items, digital products, gift returns, and anything else. Go.

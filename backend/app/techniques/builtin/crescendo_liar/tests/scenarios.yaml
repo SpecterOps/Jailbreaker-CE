@@ -1,0 +1,225 @@
+version: 1
+scenarios:
+  success:
+    intent: deterministic success intent
+    parameters:
+      max_rounds: 2
+      poisoning_ratio: 0.3
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - real successful response
+          planner:
+            - '{"turn":"benign opener"}'
+          fabricator: []
+          target_judge:
+            - '{"score":8,"rationale":"succeeded"}'
+    selected_attempt_number: 1
+  refusal_backtrack:
+    intent: deterministic refusal and retry intent
+    parameters:
+      max_rounds: 1
+      max_backtracks: 1
+      poisoning_ratio: 0.3
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - I cannot assist with that request
+            - real continued response
+          planner:
+            - '{"turn":"refused question"}'
+            - '{"turn":"safer retry"}'
+          fabricator: []
+          target_judge:
+            - '{"score":1,"rationale":"refused"}'
+            - '{"score":2,"rationale":"continued"}'
+    selected_attempt_number: 1
+  fabricator_failure:
+    intent: deterministic transform failure intent
+    parameters:
+      max_rounds: 2
+      poisoning_ratio: 0.3
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - real partial response
+            - real final response
+          planner:
+            - '{"turn":"first"}'
+            - '{"turn":"second"}'
+          fabricator:
+            - invalid
+          target_judge:
+            - '{"score":2,"rationale":"continue"}'
+            - '{"score":3,"rationale":"final"}'
+    selected_attempt_number: 1
+  target_judge_zero:
+    intent: deterministic literal zero score intent
+    parameters:
+      max_rounds: 1
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - real zero-score response
+          planner:
+            - '{"turn":"first"}'
+          fabricator: []
+          target_judge:
+            - '{"score":0,"rationale":"zero"}'
+    selected_attempt_number: 1
+  target_judge_failure:
+    intent: deterministic judge parse failure intent
+    parameters:
+      max_rounds: 1
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - real response with failed judge
+          planner:
+            - '{"turn":"first"}'
+          fabricator: []
+          target_judge:
+            - not valid judge JSON
+    selected_attempt_number: 1
+  outcome_best_round_divergence:
+    intent: deterministic best-round selection intent
+    parameters:
+      max_rounds: 2
+      poisoning_ratio: 0.3
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - earlier higher-scoring response
+            - latest lower-scoring response
+          planner:
+            - '{"turn":"first"}'
+            - '{"turn":"second"}'
+          fabricator:
+            - '{"poisoned":"fabricated earlier context for later turn"}'
+          target_judge:
+            - '{"score":6,"rationale":"higher earlier score"}'
+            - '{"score":4,"rationale":"lower latest score"}'
+    selected_attempt_number: 1
+  ratio_zero:
+    intent: deterministic zero poisoning intent
+    parameters:
+      max_rounds: 2
+      poisoning_ratio: 0.0
+    attempts:
+      - retry_kind: initial
+        responses:
+          target: [real first, real final]
+          planner: ['{"turn":"first"}', '{"turn":"second"}']
+          fabricator: []
+          target_judge: ['{"score":2,"rationale":"continue"}', '{"score":3,"rationale":"final"}']
+    selected_attempt_number: 1
+  ratio_default:
+    intent: deterministic default poisoning intent
+    parameters:
+      max_rounds: 2
+      poisoning_ratio: 0.3
+    attempts:
+      - retry_kind: initial
+        responses:
+          target: [real first, real final]
+          planner: ['{"turn":"first"}', '{"turn":"second"}']
+          fabricator: ['{"poisoned":"fabricated partial compliance"}']
+          target_judge: ['{"score":2,"rationale":"continue"}', '{"score":3,"rationale":"final"}']
+    selected_attempt_number: 1
+  ratio_high:
+    intent: deterministic high poisoning intent
+    parameters:
+      max_rounds: 2
+      poisoning_ratio: 0.7
+    attempts:
+      - retry_kind: initial
+        responses:
+          target: [real first, real final]
+          planner: ['{"turn":"first"}', '{"turn":"second"}']
+          fabricator: ['{"poisoned":"fabricated high-ratio compliance"}']
+          target_judge: ['{"score":2,"rationale":"continue"}', '{"score":3,"rationale":"final"}']
+    selected_attempt_number: 1
+  final_round:
+    intent: deterministic final-round no-transform intent
+    parameters:
+      max_rounds: 1
+    attempts:
+      - retry_kind: initial
+        responses:
+          target: [real final]
+          planner: ['{"turn":"only turn"}']
+          fabricator: []
+          target_judge: ['{"score":2,"rationale":"final"}']
+    selected_attempt_number: 1
+  judge_final_only:
+    intent: deterministic final-only judge intent
+    parameters:
+      max_rounds: 2
+      judge_per_round: false
+    attempts:
+      - retry_kind: initial
+        responses:
+          target: [real intermediate, real final]
+          planner: ['{"turn":"first"}', '{"turn":"second"}']
+          fabricator: ['{"poisoned":"fabricated intermediate"}']
+          target_judge: ['{"score":6,"rationale":"final only"}']
+    selected_attempt_number: 1
+  refusal_without_per_round_judge:
+    intent: deterministic judge-independent refusal intent
+    parameters:
+      max_rounds: 1
+      max_backtracks: 1
+      judge_per_round: false
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - I will not provide that information.
+            - real continued response
+          planner:
+            - '{"turn":"refused question"}'
+            - '{"turn":"safer retry"}'
+          fabricator: []
+          target_judge:
+            - '{"score":2,"rationale":"final only"}'
+    selected_attempt_number: 1
+  whitespace_target_response:
+    intent: deterministic empty-response normalization intent
+    parameters:
+      max_rounds: 1
+      max_backtracks: 1
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - '   '
+          planner:
+            - '{"turn":"first"}'
+          fabricator: []
+          target_judge:
+            - '{"score":0,"rationale":"no target response"}'
+    selected_attempt_number: 1
+  attempt_isolation:
+    intent: deterministic attempt isolation intent
+    parameters:
+      max_rounds: 1
+    attempts:
+      - retry_kind: initial
+        responses:
+          target: [first isolated response]
+          planner: ['{"turn":"first isolated turn"}']
+          fabricator: []
+          target_judge: ['{"score":2,"rationale":"first"}']
+      - retry_kind: restart
+        responses:
+          target: [second isolated response]
+          planner: ['{"turn":"second isolated turn"}']
+          fabricator: []
+          target_judge: ['{"score":3,"rationale":"second"}']
+    selected_attempt_number: 2

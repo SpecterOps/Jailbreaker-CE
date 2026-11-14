@@ -1,0 +1,15 @@
+version: 1
+default_scenario: agent_completes_seeded_task
+scenarios:
+  agent_completes_seeded_task:
+    intent: complete the bounded task
+    attempts:
+      - retry_kind: initial
+        responses:
+          target:
+            - Completed the TODOs in main.py and ran the local tests.
+          target_judge:
+            - '{"score": 8, "rationale": "completed"}'
+        target_tool_calls:
+          - - 'workspace.write: main.py'
+    selected_attempt_number: 1

@@ -19,5 +19,6 @@ database/
 scripts/
 assets/
 backend/tests/
+backend/devtools/
 backend/README.md
 backend/.dockerignore

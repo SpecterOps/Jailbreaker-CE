@@ -169,6 +169,15 @@ test("history script fetches run history with URLSearchParams and renders withou
   assert.doesNotMatch(script, /\.innerHTML\b/, "history rendering should avoid direct HTML injection");
 });
 
+test("history renders generic conversation formats without technique checks", () => {
+  for (const kind of ["round", "generation", "tree", "single_shot", "raw"]) {
+    assert.match(script, new RegExp(`entry\\.kind === "${kind}"`), `history should dispatch ${kind}`);
+  }
+  assert.match(script, /function renderConversationTree\(/, "history should expose a generic tree renderer");
+  assert.match(script, /function renderRawConversationEntry\(/, "history should preserve unknown evidence safely");
+  assert.doesNotMatch(script, /renderConversationTree[\s\S]{0,2000}(?:tap|TAP)/, "history tree rendering must not branch on TAP");
+});
+
 test("history page styles dense filter and table layouts", () => {
   const filterGrid = ruleBody(".history-filter-grid");
   const primaryFilters = ruleBody(".history-primary-filters");
